@@ -7,7 +7,7 @@ const { processIncomingMessage } = require('./bot');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_KEY || process.env.CLAVE_DE_SERVICIO_SUPABASE
 );
 
 const VERIFY_TOKEN = process.env.WA_VERIFY_TOKEN; // definir en Vercel
@@ -90,7 +90,8 @@ module.exports = async function handler(req, res) {
 
 async function sendWhatsAppMessage(to, text) {
   const resp = await fetch(
-    `https://graph.facebook.com/v19.0/${process.env.WA_PHONE_NUMBER_ID}/messages`,
+    const phoneId = process.env.WA_PHONE_NUMBER_ID || process.env['ID_DE_NÚMERO_DE_TELÉFONO_WA'];
+    `https://graph.facebook.com/v19.0/${phoneId}/messages`,
     {
       method: 'POST',
       headers: {
