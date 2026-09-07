@@ -1,0 +1,952 @@
+<title>DLS Control</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+
+<style>
+/* ── TOKENS ── */
+:root {
+  --bg:         #EAE5DB;
+  --surface:    #F5F1EA;
+  --surface-hi: #FDFBF7;
+  --surface-lo: #E0DACF;
+  --line:       #D0C9BC;
+  --line-hi:    #BDB5A7;
+  --ink:        #1A1714;
+  --ink-2:      #635C52;
+  --ink-3:      #9B9388;
+  --accent:     #6F90A2;
+  --accent-lo:  #D0DFE6;
+  --accent-hi:  #4E7588;
+  --wa:         #22C55E;
+  --wa-lo:      #DCFCE7;
+  --em:         #3B6FA0;
+  --em-lo:      #DBEAFE;
+  --ig:         #BE185D;
+  --ig-lo:      #FCE7F3;
+  --ok:         #4CAF6E;
+  --warn:       #E8943A;
+  --s-new:      #F59E0B;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:         #161310;
+    --surface:    #1E1B17;
+    --surface-hi: #252118;
+    --surface-lo: #111009;
+    --line:       #2C2720;
+    --line-hi:    #3A342B;
+    --ink:        #EEE9DF;
+    --ink-2:      #928B80;
+    --ink-3:      #5A5349;
+    --accent:     #84AABE;
+    --accent-lo:  #1A2F3D;
+    --accent-hi:  #A0C0D0;
+    --wa-lo:      #052E16;
+    --em-lo:      #1B3455;
+    --ig-lo:      #4A0520;
+    --s-new:      #D97706;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:         #161310;
+  --surface:    #1E1B17;
+  --surface-hi: #252118;
+  --surface-lo: #111009;
+  --line:       #2C2720;
+  --line-hi:    #3A342B;
+  --ink:        #EEE9DF;
+  --ink-2:      #928B80;
+  --ink-3:      #5A5349;
+  --accent:     #84AABE;
+  --accent-lo:  #1A2F3D;
+  --accent-hi:  #A0C0D0;
+  --wa-lo:      #052E16;
+  --em-lo:      #1B3455;
+  --ig-lo:      #4A0520;
+  --s-new:      #D97706;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  font-size: 13px;
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 60px;
+  background: var(--surface-lo);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 0 12px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.logo {
+  width: 34px; height: 34px;
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Serif Display', serif;
+  font-size: 13px;
+  letter-spacing: -0.5px;
+  margin-bottom: 18px;
+  flex-shrink: 0;
+}
+.nav-sep { width: 28px; height: 1px; background: var(--line); margin: 6px 0; }
+.nav-btn {
+  width: 38px; height: 38px;
+  border: none; background: transparent;
+  color: var(--ink-3);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: background 0.12s, color 0.12s;
+}
+.nav-btn svg { pointer-events: none; }
+.nav-btn:hover  { background: var(--surface); color: var(--ink-2); }
+.nav-btn.active { background: var(--accent-lo); color: var(--accent); }
+.nav-btn .badge {
+  position: absolute; top: 7px; right: 7px;
+  width: 7px; height: 7px;
+  background: var(--s-new);
+  border-radius: 50%;
+  border: 1.5px solid var(--surface-lo);
+}
+.spacer { flex: 1; }
+
+/* ── STATS BAR ── */
+.main-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.stats-bar {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.stat-cell {
+  flex: 1;
+  padding: 10px 16px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stat-cell:last-child { border-right: none; }
+.stat-num {
+  font-family: 'DM Serif Display', serif;
+  font-size: 22px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.stat-num.accent { color: var(--accent); }
+.stat-lbl {
+  font-size: 10px;
+  color: var(--ink-3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ── WORKSPACE ── */
+.workspace {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── INBOX LIST ── */
+.inbox-panel {
+  width: 288px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel-head {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-title {
+  font-size: 13px; font-weight: 600;
+  margin-bottom: 10px;
+}
+.ch-tabs { display: flex; gap: 5px; }
+.ch-tab {
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: all 0.12s;
+  background: var(--surface-lo);
+  color: var(--ink-3);
+}
+.ch-tab.active-all { background: var(--ink); color: var(--surface); }
+.ch-tab.active-wa  { background: var(--wa-lo); color: var(--wa); }
+.ch-tab.active-em  { background: var(--em-lo); color: var(--em); }
+.ch-tab.active-ig  { background: var(--ig-lo); color: var(--ig); }
+.ch-tab:hover:not(.active-all):not(.active-wa):not(.active-em):not(.active-ig) {
+  background: var(--line); color: var(--ink-2);
+}
+
+.msg-list { overflow-y: auto; flex: 1; }
+.msg-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+}
+.msg-item:hover  { background: var(--bg); }
+.msg-item.sel    { background: var(--accent-lo); }
+
+.avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  font-size: 12px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+.avatar.wa-av   { background: var(--wa-lo);  color: var(--wa); }
+.avatar.em-av   { background: var(--em-lo);  color: var(--em); }
+.avatar.ig-av   { background: var(--ig-lo);  color: var(--ig); }
+
+.ch-dot {
+  position: absolute; bottom: -1px; right: -1px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+}
+.ch-dot.wa { background: var(--wa); }
+.ch-dot.em { background: var(--em); }
+.ch-dot.ig { background: var(--ig); }
+
+.msg-info { flex: 1; min-width: 0; }
+.msg-row1, .msg-row2, .msg-row3 {
+  display: flex; align-items: baseline; justify-content: space-between;
+}
+.msg-row2, .msg-row3 { margin-top: 2px; }
+.msg-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.msg-time { font-size: 10px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.msg-prev { font-size: 11px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.unread {
+  width: 16px; height: 16px;
+  background: var(--accent); color: #fff;
+  border-radius: 50%; font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-left: 6px;
+}
+.schip {
+  font-size: 9px; font-weight: 600;
+  padding: 1px 5px; border-radius: 4px;
+  letter-spacing: 0.03em; text-transform: uppercase;
+  flex-shrink: 0;
+}
+.schip.nuevo        { background: #FEF3C7; color: #92400E; }
+.schip.seguimiento  { background: #DBEAFE; color: #1E40AF; }
+.schip.visita       { background: #EDE9FE; color: #5B21B6; }
+.schip.presupuesto  { background: #FFEDD5; color: #9A3412; }
+.schip.cerrado      { background: #DCFCE7; color: #166534; }
+
+/* dark-mode status chips */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .schip.nuevo       { background: #422006; color: #FCD34D; }
+  :root:not([data-theme="light"]) .schip.seguimiento { background: #1E3A5F; color: #93C5FD; }
+  :root:not([data-theme="light"]) .schip.visita      { background: #2E1065; color: #C4B5FD; }
+  :root:not([data-theme="light"]) .schip.presupuesto { background: #431407; color: #FCA87A; }
+  :root:not([data-theme="light"]) .schip.cerrado     { background: #052E16; color: #6EE7B7; }
+}
+:root[data-theme="dark"] .schip.nuevo       { background: #422006; color: #FCD34D; }
+:root[data-theme="dark"] .schip.seguimiento { background: #1E3A5F; color: #93C5FD; }
+:root[data-theme="dark"] .schip.visita      { background: #2E1065; color: #C4B5FD; }
+:root[data-theme="dark"] .schip.presupuesto { background: #431407; color: #FCA87A; }
+:root[data-theme="dark"] .schip.cerrado     { background: #052E16; color: #6EE7B7; }
+
+/* ── CONVERSATION ── */
+.conv-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+.conv-header {
+  padding: 11px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 12px;
+  flex-shrink: 0;
+}
+.conv-av {
+  width: 32px; height: 32px; border-radius: 50%;
+  font-size: 11px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.conv-info { flex: 1; min-width: 0; }
+.conv-name { font-size: 13px; font-weight: 600; }
+.conv-sub  { font-size: 10px; color: var(--ink-3); margin-top: 1px; }
+.hdr-actions { display: flex; gap: 6px; }
+.hbtn {
+  padding: 5px 12px;
+  border-radius: 7px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink-2);
+  font-size: 11px; font-weight: 500;
+  cursor: pointer; transition: all 0.12s;
+  font-family: inherit;
+}
+.hbtn:hover { background: var(--surface-lo); color: var(--ink); }
+.hbtn.prim  { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.hbtn.prim:hover { opacity: 0.8; }
+
+.chat-area {
+  flex: 1; overflow-y: auto;
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.sys-msg {
+  text-align: center; font-size: 10px;
+  color: var(--ink-3); padding: 2px 0;
+  letter-spacing: 0.02em;
+}
+.bot-note {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  font-size: 10px; color: var(--accent);
+  background: var(--accent-lo);
+  border-radius: 6px; padding: 4px 10px;
+  margin: 0 auto;
+}
+.bwrap { display: flex; align-items: flex-end; gap: 7px; }
+.bwrap.out { flex-direction: row-reverse; }
+.bubble {
+  max-width: 68%;
+  padding: 9px 13px;
+  border-radius: 16px;
+  font-size: 12px; line-height: 1.55;
+}
+.bubble.in  {
+  background: var(--surface);
+  color: var(--ink);
+  border-bottom-left-radius: 4px;
+}
+.bubble.out {
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.bubble.bot {
+  background: var(--accent-lo);
+  color: var(--accent-hi);
+  border-bottom-right-radius: 4px;
+  border: 1px solid var(--accent-lo);
+}
+.btime { font-size: 9px; color: var(--ink-3); flex-shrink: 0; padding-bottom: 4px; }
+.bwrap.out .btime { color: var(--ink-3); }
+
+.reply-bar {
+  padding: 10px 14px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  display: flex; gap: 9px; align-items: flex-end;
+  flex-shrink: 0;
+}
+.reply-input {
+  flex: 1; border: 1px solid var(--line);
+  border-radius: 10px; padding: 9px 13px;
+  font-size: 12px; font-family: inherit;
+  background: var(--bg); color: var(--ink);
+  resize: none; outline: none;
+  min-height: 38px; max-height: 100px;
+  transition: border-color 0.12s;
+  line-height: 1.5;
+}
+.reply-input:focus { border-color: var(--accent); }
+.send-btn {
+  width: 38px; height: 38px;
+  border-radius: 9px; border: none;
+  background: var(--accent); color: #fff;
+  cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background 0.12s;
+}
+.send-btn:hover { background: var(--accent-hi); }
+
+/* ── LEAD SIDEBAR ── */
+.lead-side {
+  width: 220px; flex-shrink: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  padding: 14px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.ls-section-title {
+  font-size: 9px; font-weight: 600;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.ls-field { margin-bottom: 8px; }
+.ls-label { font-size: 9px; color: var(--ink-3); letter-spacing: 0.04em; margin-bottom: 2px; }
+.ls-value { font-size: 12px; color: var(--ink); font-weight: 500; }
+.ls-divider { height: 1px; background: var(--line); }
+
+.pipeline { display: flex; flex-direction: column; gap: 5px; }
+.pipe-step {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--ink-3);
+}
+.pipe-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--line); flex-shrink: 0;
+}
+.pipe-step.done   .pipe-dot { background: var(--ok); }
+.pipe-step.active .pipe-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-lo); }
+.pipe-step.done   { color: var(--ink-2); }
+.pipe-step.active { color: var(--ink); font-weight: 500; }
+
+.agenda-item {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+}
+.ag-time { font-size: 10px; color: var(--accent); font-weight: 600; }
+.ag-desc { font-size: 11px; color: var(--ink); }
+.ag-addr { font-size: 10px; color: var(--ink-3); }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+/* ── WELCOME STATE ── */
+.welcome {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px; color: var(--ink-3);
+}
+.welcome svg { opacity: 0.3; }
+.welcome p { font-size: 12px; }
+</style>
+
+<div class="sidebar">
+  <div class="logo">DLS</div>
+
+  <button class="nav-btn active" title="Mensajes" onclick="setNav(this,'inbox')">
+    <div class="badge"></div>
+    <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5M4 6a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H8l-4 4V6z"/>
+    </svg>
+  </button>
+
+  <button class="nav-btn" title="Cotizaciones" onclick="setNav(this,'quotes')">
+    <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M7 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-2M9 4a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+    </svg>
+  </button>
+
+  <button class="nav-btn" title="Agenda" onclick="setNav(this,'agenda')">
+    <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+    </svg>
+  </button>
+
+  <button class="nav-btn" title="Proyectos" onclick="setNav(this,'projects')">
+    <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+    </svg>
+  </button>
+
+  <div class="spacer"></div>
+  <div class="nav-sep"></div>
+
+  <button class="nav-btn" title="Configuración">
+    <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+    </svg>
+  </button>
+</div>
+
+<div class="main-col">
+  <!-- stats -->
+  <div class="stats-bar">
+    <div class="stat-cell">
+      <span class="stat-num accent">8</span>
+      <span class="stat-lbl">Leads hoy</span>
+    </div>
+    <div class="stat-cell">
+      <span class="stat-num">3</span>
+      <span class="stat-lbl">Sin responder</span>
+    </div>
+    <div class="stat-cell">
+      <span class="stat-num">2</span>
+      <span class="stat-lbl">Visitas esta semana</span>
+    </div>
+    <div class="stat-cell">
+      <span class="stat-num">5</span>
+      <span class="stat-lbl">Bot respondió hoy</span>
+    </div>
+  </div>
+
+  <div class="workspace">
+    <!-- inbox list -->
+    <div class="inbox-panel">
+      <div class="panel-head">
+        <div class="panel-title">Mensajes</div>
+        <div class="ch-tabs">
+          <button class="ch-tab active-all" onclick="filterCh(this,'all')">Todos</button>
+          <button class="ch-tab" onclick="filterCh(this,'wa')">WhatsApp</button>
+          <button class="ch-tab" onclick="filterCh(this,'em')">Email</button>
+          <button class="ch-tab" onclick="filterCh(this,'ig')">IG</button>
+        </div>
+      </div>
+      <div class="msg-list" id="msgList"></div>
+    </div>
+
+    <!-- conversation -->
+    <div class="conv-pane">
+      <div class="conv-header" id="convHeader" style="display:none"></div>
+      <div class="chat-area" id="chatArea">
+        <div class="welcome">
+          <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5M4 6a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H8l-4 4V6z"/>
+          </svg>
+          <p>Selecciona una conversación</p>
+        </div>
+      </div>
+      <div class="reply-bar" id="replyBar" style="display:none">
+        <textarea class="reply-input" placeholder="Escribe una respuesta…" rows="1"
+          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendReply()}"
+        ></textarea>
+        <button class="send-btn" onclick="sendReply()" title="Enviar">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- lead info -->
+    <div class="lead-side" id="leadSide" style="display:none"></div>
+  </div>
+</div>
+
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#6F90A2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DLS Control">
+
+<script>
+// ── CONFIGURACIÓN SUPABASE ──────────────────────────────────
+// Reemplazar con tus credenciales reales de Supabase
+const SUPABASE_URL  = 'https://qowelqzdogshraxwtmkw.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvd2VscXpkb2dzaHJheHd0bWt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NTYzMjYsImV4cCI6MjEwNDMzMjMyNn0.uJVStAiKx0jNsi5UlkUtZYE49UiC345RF155W_zs-j4';
+const USE_REALTIME  = SUPABASE_URL !== 'SUPABASE_URL_AQUI';
+
+// ── DATOS DE DEMO (mientras Supabase no está conectado) ─────
+const demoLeads = [
+  {
+    id: 'demo-1', ch: 'wa', initials: 'MG',
+    name: 'María González', phone: '+56 9 8234 5678',
+    time: '10:32', unread: 2, status: 'nuevo',
+    tipo: 'Cocina', m2: '18', zona: 'Providencia',
+    presupuesto: '$15M – $25M',
+    preview: 'Quería consultar por remodelación de cocina',
+    pipeStep: 0, agenda: null,
+    msgs: [
+      { dir:'in',  text:'Buenas tardes, quería consultar por una remodelación de cocina en Providencia 😊', time:'10:28' },
+      { dir:'in',  text:'Son aprox 18m², cocina americana integrada al living', time:'10:30' },
+      { dir:'bot', text:'¡Hola María! Soy el asistente de DLS Remodelaciones 👋\n\nUna cocina de 18m² en Providencia está en nuestro rango de $15.000.000 a $25.000.000 según materiales y terminaciones.\n\n¿Te gustaría que un asesor coordine una visita en terreno sin costo?', time:'10:31' },
+      { dir:'in',  text:'Sí me interesa, ¿cuándo podría ser?', time:'10:32' }
+    ]
+  },
+  {
+    id: 'demo-2', ch: 'em', initials: 'RT',
+    name: 'Roberto Tapia', phone: 'roberto.tapia@gmail.com',
+    time: 'Ayer', unread: 0, status: 'seguimiento',
+    tipo: 'Baño', m2: '6', zona: 'Las Condes',
+    presupuesto: '$5M – $7M',
+    preview: 'Gracias por la cotización, lo revisaré con mi señora',
+    pipeStep: 3, agenda: null,
+    msgs: [
+      { dir:'in',  text:'Buenos días, solicité una cotización para remodelar el baño principal.', time:'Lun 09:14' },
+      { dir:'bot', text:'Hola Roberto, para un baño de 6m² en Las Condes el rango es $5.000.000 – $7.000.000.\n\n¿Tienes disponibilidad esta semana para una visita en terreno sin costo?', time:'Lun 09:15' },
+      { dir:'in',  text:'Sí, el miércoles en la tarde me queda bien', time:'Lun 10:02' },
+      { dir:'out', text:'Perfecto Roberto. Agendado el miércoles a las 17:00 hrs. en Av. Vitacura 3150, Las Condes. 👍', time:'Lun 10:08' },
+      { dir:'in',  text:'La visita estuvo genial, quedamos muy conformes.', time:'Mié 18:30' },
+      { dir:'in',  text:'Gracias por la cotización, lo revisaré con mi señora y te confirmo.', time:'Jue 11:20' }
+    ]
+  },
+  {
+    id: 'demo-3', ch: 'ig', initials: 'CS',
+    name: 'Carolina Silva', phone: '@carolinasilva',
+    time: '09:15', unread: 1, status: 'nuevo',
+    tipo: 'Quincho', m2: '30', zona: 'Vitacura',
+    presupuesto: '$25M – $35M',
+    preview: 'Vi sus proyectos en Instagram, quiero algo similar',
+    pipeStep: 0, agenda: null,
+    msgs: [
+      { dir:'in',  text:'Hola!! Vi los proyectos de quinchos en Instagram y quedé fascinada 😍', time:'09:12' },
+      { dir:'in',  text:'Tengo un espacio de 30m² en Vitacura y quiero algo similar', time:'09:15' },
+      { dir:'bot', text:'¡Hola Carolina! Gracias por escribirnos 🙌\n\nPara 30m² el rango parte desde $25.000.000. Incluye diseño arquitectónico y terminaciones completas.\n\n¿Te puedo pedir tu número para coordinar una visita?', time:'09:16' }
+    ]
+  },
+  {
+    id: 'demo-4', ch: 'wa', initials: 'FM',
+    name: 'Felipe Morales', phone: '+56 9 6712 3490',
+    time: 'Ayer', unread: 0, status: 'visita',
+    tipo: 'Cocina + Baño', m2: '22', zona: 'La Reina',
+    presupuesto: '$20M – $30M',
+    preview: 'Confirmado para el viernes a las 10:00',
+    pipeStep: 2,
+    agenda: { time: 'Vie 11 Sep · 10:00', desc: 'Visita en terreno', addr: 'Av. Ossa 1240, La Reina' },
+    msgs: [
+      { dir:'in',  text:'Hola, quiero remodelar cocina y baño juntos', time:'Mar 15:00' },
+      { dir:'bot', text:'Hola Felipe! Para cocina + baño de 22m² el rango está entre $20M y $30M.\n\n¿Qué día te acomoda para una visita esta semana?', time:'Mar 15:01' },
+      { dir:'in',  text:'El viernes en la mañana sería ideal', time:'Mar 15:18' },
+      { dir:'out', text:'Perfecto — el viernes 11 a las 10:00 hrs. en Av. Ossa 1240, La Reina. ¡Nos vemos! 🤝', time:'Mar 15:22' },
+      { dir:'in',  text:'Confirmado para el viernes a las 10:00', time:'Mar 15:30' }
+    ]
+  },
+  {
+    id: 'demo-5', ch: 'em', initials: 'AC',
+    name: 'Andrea Castro', phone: 'a.castro@empresas.cl',
+    time: '2 días', unread: 0, status: 'presupuesto',
+    tipo: 'Depto completo', m2: '80', zona: 'Ñuñoa',
+    presupuesto: '≈ 2.000 UF',
+    preview: 'Revisando el presupuesto, muy completo',
+    pipeStep: 3, agenda: null,
+    msgs: [
+      { dir:'in',  text:'Buenos días, quiero remodelar un departamento completo de 80m² en Ñuñoa.', time:'Lun 08:30' },
+      { dir:'bot', text:'Buenos días Andrea. Para 80m² en Ñuñoa estamos hablando de aprox. 2.000 UF, incluyendo diseño e instalaciones.\n\n¿Tiene fecha estimada para iniciar la obra?', time:'Lun 08:31' },
+      { dir:'in',  text:'Marzo del próximo año. Me gustaría recibir una propuesta formal.', time:'Lun 10:15' },
+      { dir:'out', text:'Perfecto Andrea. Coordinamos visita esta semana para levantar medidas.', time:'Lun 10:30' },
+      { dir:'in',  text:'Revisando el presupuesto, muy completo. Nos juntamos la próxima semana.', time:'Mié 16:00' }
+    ]
+  }
+];
+
+const pipeLabels = ['Contacto inicial','Cotizador web','Visita en terreno','Presupuesto enviado','Proyecto cerrado'];
+const chLabels = { wa:'WhatsApp', em:'Email', ig:'Instagram' };
+
+let leads = [...demoLeads];
+let active = null, filter = 'all';
+let supabaseClient = null;
+
+// ── SUPABASE REAL-TIME ─────────────────────────────────────
+async function initSupabase() {
+  if (!USE_REALTIME) {
+    showBanner('🟡 Modo demo — conecta Supabase para datos reales', 'warn');
+    return;
+  }
+  try {
+    const { createClient } = supabase;
+    supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Cargar leads reales
+    const { data, error } = await supabaseClient
+      .from('leads')
+      .select(`*, messages(id,direction,text,created_at)`)
+      .order('last_msg_at', { ascending: false });
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      leads = data.map(mapDbLead);
+      renderList();
+    }
+
+    // Suscripción real-time a nuevos mensajes
+    supabaseClient
+      .channel('messages-channel')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
+        async (payload) => {
+          const msg = payload.new;
+          const lead = leads.find(l => l.id === msg.lead_id);
+          if (lead) {
+            lead.msgs.push(mapDbMsg(msg));
+            lead.preview = msg.text.slice(0, 50);
+            if (msg.direction === 'in') lead.unread = (lead.unread || 0) + 1;
+            lead.time = fmtTime(msg.created_at);
+            renderList();
+            if (active === lead.id) openLead(lead.id);
+          } else {
+            // Nuevo lead — recargar lista
+            const { data: fresh } = await supabaseClient
+              .from('leads').select(`*, messages(*)`)
+              .order('last_msg_at', { ascending: false });
+            leads = (fresh || []).map(mapDbLead);
+            renderList();
+          }
+        })
+      .subscribe();
+
+    showBanner('🟢 Conectado en tiempo real', 'ok');
+  } catch (e) {
+    showBanner('🔴 Error conectando Supabase: ' + e.message, 'err');
+  }
+}
+
+function mapDbLead(row) {
+  const msgs = (row.messages || [])
+    .sort((a,b) => new Date(a.created_at) - new Date(b.created_at))
+    .map(mapDbMsg);
+  const last = msgs[msgs.length - 1];
+  return {
+    id: row.id, ch: row.channel,
+    initials: row.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(),
+    name: row.name, phone: row.phone || row.email || row.ig_handle,
+    time: fmtTime(row.last_msg_at), unread: row.unread || 0,
+    status: row.status, tipo: row.tipo || '–',
+    m2: row.m2 || '–', zona: row.zona || '–',
+    presupuesto: row.presupuesto || '–',
+    preview: last ? last.text.slice(0,50) : '',
+    pipeStep: row.pipe_step || 0, agenda: null, msgs
+  };
+}
+
+function mapDbMsg(m) {
+  return {
+    dir: m.direction,
+    text: m.text,
+    time: fmtTime(m.created_at)
+  };
+}
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso), now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 86400) return d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+  if (diff < 172800) return 'Ayer';
+  return d.toLocaleDateString('es-CL',{day:'numeric',month:'short'});
+}
+
+function showBanner(msg, type) {
+  const el = document.getElementById('status-banner');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.className = 'status-banner ' + type;
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
+// ── RENDER ─────────────────────────────────────────────────
+function renderList() {
+  const list = document.getElementById('msgList');
+  const shown = filter === 'all' ? leads : leads.filter(l => l.ch === filter);
+  list.innerHTML = shown.map(l => `
+    <div class="msg-item${active===l.id?' sel':''}" onclick="openLead('${l.id}')" data-ch="${l.ch}">
+      <div class="avatar ${l.ch}-av">
+        ${l.initials}
+        <span class="ch-dot ${l.ch}"></span>
+      </div>
+      <div class="msg-info">
+        <div class="msg-row1">
+          <span class="msg-name">${l.name}</span>
+          <span class="msg-time">${l.time}</span>
+        </div>
+        <div class="msg-row2">
+          <span class="msg-prev">${l.preview}</span>
+          ${l.unread ? `<span class="unread">${l.unread}</span>` : ''}
+        </div>
+        <div class="msg-row3" style="margin-top:4px">
+          <span class="schip ${l.status}">${statusLabel(l.status)}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function statusLabel(s) {
+  return {nuevo:'Nuevo',seguimiento:'Seguimiento',visita:'Visita agendada',presupuesto:'Presupuesto enviado',cerrado:'Cerrado'}[s]||s;
+}
+
+function openLead(id) {
+  active = id;
+  const l = leads.find(x => x.id === id);
+  if (!l) return;
+  l.unread = 0;
+  renderList();
+
+  const hdr = document.getElementById('convHeader');
+  hdr.style.display = 'flex';
+  hdr.innerHTML = `
+    <div class="conv-av ${l.ch}-av" style="font-size:11px;font-weight:600">${l.initials}</div>
+    <div class="conv-info">
+      <div class="conv-name">${l.name}</div>
+      <div class="conv-sub">${chLabels[l.ch]} · ${l.phone}</div>
+    </div>
+    <div class="hdr-actions">
+      <button class="hbtn" onclick="changeStatus('${l.id}')">Estado ▾</button>
+      <button class="hbtn prim" onclick="scheduleVisit('${l.id}')">Agendar visita</button>
+    </div>`;
+
+  const ca = document.getElementById('chatArea');
+  ca.innerHTML = `<div class="sys-msg">${chLabels[l.ch]} · ${l.tipo} · ${l.zona}</div>` +
+    l.msgs.map(m => {
+      if (m.dir === 'bot') return `
+        <div class="bot-note">
+          <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Bot respondió automáticamente
+        </div>
+        <div class="bwrap out">
+          <div class="bubble bot">${m.text.replace(/\n/g,'<br>')}</div>
+          <span class="btime">${m.time}</span>
+        </div>`;
+      if (m.dir === 'out') return `
+        <div class="bwrap out">
+          <div class="bubble out">${m.text.replace(/\n/g,'<br>')}</div>
+          <span class="btime">${m.time}</span>
+        </div>`;
+      return `
+        <div class="bwrap">
+          <div class="bubble in">${m.text.replace(/\n/g,'<br>')}</div>
+          <span class="btime">${m.time}</span>
+        </div>`;
+    }).join('');
+  ca.scrollTop = ca.scrollHeight;
+
+  document.getElementById('replyBar').style.display = 'flex';
+
+  const ls = document.getElementById('leadSide');
+  ls.style.display = 'flex';
+  ls.innerHTML = `
+    <div>
+      <div class="ls-section-title">Lead</div>
+      <div class="ls-field"><div class="ls-label">Tipo de proyecto</div><div class="ls-value">${l.tipo}</div></div>
+      <div class="ls-field"><div class="ls-label">Superficie</div><div class="ls-value">${l.m2} m²</div></div>
+      <div class="ls-field"><div class="ls-label">Zona</div><div class="ls-value">${l.zona}</div></div>
+      <div class="ls-field"><div class="ls-label">Presupuesto</div><div class="ls-value">${l.presupuesto}</div></div>
+    </div>
+    <div class="ls-divider"></div>
+    <div>
+      <div class="ls-section-title">Pipeline</div>
+      <div class="pipeline">
+        ${pipeLabels.map((p,i) => `
+          <div class="pipe-step ${i < l.pipeStep ? 'done' : i === l.pipeStep ? 'active' : ''}">
+            <span class="pipe-dot"></span>${p}
+          </div>`).join('')}
+      </div>
+    </div>
+    ${l.agenda ? `
+    <div class="ls-divider"></div>
+    <div>
+      <div class="ls-section-title">Próxima visita</div>
+      <div class="agenda-item">
+        <div class="ag-time">${l.agenda.time}</div>
+        <div class="ag-desc">${l.agenda.desc}</div>
+        <div class="ag-addr">${l.agenda.addr}</div>
+      </div>
+    </div>` : ''}`;
+}
+
+function filterCh(btn, ch) {
+  filter = ch;
+  document.querySelectorAll('.ch-tab').forEach(b => b.className = 'ch-tab');
+  btn.classList.add(ch==='all'?'active-all':ch==='wa'?'active-wa':ch==='em'?'active-em':'active-ig');
+  renderList();
+}
+
+function setNav(btn, view) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function sendReply() {
+  const ta = document.querySelector('.reply-input');
+  const text = ta.value.trim();
+  if (!text || !active) return;
+  const l = leads.find(x => x.id === active);
+
+  ta.value = ''; ta.style.height = 'auto';
+
+  if (USE_REALTIME && supabaseClient) {
+    // Enviar por API real
+    await fetch('/api/send-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: active, text })
+    });
+    // El mensaje aparecerá via real-time subscription
+  } else {
+    // Demo: mostrar localmente
+    l.msgs.push({ dir:'out', text, time: new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}) });
+    l.preview = text; l.unread = 0;
+    openLead(active);
+  }
+}
+
+async function changeStatus(id) {
+  const statuses = ['nuevo','seguimiento','visita','presupuesto','cerrado'];
+  const l = leads.find(x => x.id === id);
+  const next = statuses[(statuses.indexOf(l.status)+1) % statuses.length];
+  l.status = next; l.pipeStep = statuses.indexOf(next);
+  if (USE_REALTIME && supabaseClient) {
+    await supabaseClient.from('leads').update({ status: next, pipe_step: l.pipeStep }).eq('id', id);
+  }
+  openLead(id);
+}
+
+function scheduleVisit(id) {
+  const l = leads.find(x => x.id === id);
+  if (!l.agenda) {
+    l.agenda = { time: 'Por coordinar', desc: 'Visita en terreno', addr: l.zona };
+    l.status = 'visita'; l.pipeStep = 2;
+  }
+  openLead(id);
+}
+
+// ── BANNER CSS ─────────────────────────────────────────────
+const style = document.createElement('style');
+style.textContent = `
+.status-banner {
+  position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
+  padding:8px 18px; border-radius:8px; font-size:12px; font-weight:500;
+  z-index:9999; display:none; white-space:nowrap;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+.status-banner.ok   { background:#1a3d26; color:#4ade80; }
+.status-banner.warn { background:#3d2e00; color:#fbbf24; }
+.status-banner.err  { background:#3d0808; color:#f87171; }
+`;
+document.head.appendChild(style);
+
+// ── PWA SERVICE WORKER ─────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(console.error);
+}
+
+// ── INIT ──────────────────────────────────────────────────
+renderList();
+openLead('demo-1');
+initSupabase();
+</script>
+
+<div id="status-banner" class="status-banner"></div>

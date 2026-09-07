@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "routes": [
+    { "src": "/api/webhook-whatsapp", "dest": "/api/webhook-whatsapp.js" },
+    { "src": "/api/webhook-instagram", "dest": "/api/webhook-instagram.js" },
+    { "src": "/api/send-message", "dest": "/api/send-message.js" },
+    { "src": "/(.*)", "dest": "/public/$1" }
+  ]
+}
