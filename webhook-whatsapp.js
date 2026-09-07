@@ -1,112 +1,75 @@
-// ============================================================
-// DLS Control — Webhook WhatsApp (Meta Cloud API)
-// ============================================================
-
 const { createClient } = require('@supabase/supabase-js');
-const { processIncomingMessage } = require('./bot');
+const { generateBotResponse } = require('./bot');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY || process.env.CLAVE_DE_SERVICIO_SUPABASE
+  process.env.SUPABASE_SERVICE_KEY
 );
 
-const VERIFY_TOKEN = process.env.WA_VERIFY_TOKEN; // definir en Vercel
-
-module.exports = async function handler(req, res) {
-
-  // ── VERIFICACIÓN del webhook (GET) ────────────────────────
+module.exports = async (req, res) => {
   if (req.method === 'GET') {
-    const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    if (mode === 'subscribe' && token === process.env.WA_VERIFY_TOKEN) {
       return res.status(200).send(challenge);
     }
-    return res.status(403).json({ error: 'Forbidden' });
+    return res.status(403).send('Forbidden');
   }
 
-  // ── MENSAJE ENTRANTE (POST) ───────────────────────────────
   if (req.method === 'POST') {
     try {
       const body = req.body;
-      const entry = body?.entry?.[0];
-      const change = entry?.changes?.[0];
-      const value = change?.value;
-      const messages = value?.messages;
-
-      if (!messages?.length) return res.status(200).json({ ok: true });
-
-      for (const msg of messages) {
-        if (msg.type !== 'text') continue;
-
-        const phone = msg.from;           // número del cliente
-        const text  = msg.text?.body;
-        const msgId = msg.id;
-        const contact = value?.contacts?.[0];
-        const name  = contact?.profile?.name || phone;
-
-        // 1. Buscar o crear lead
-        let { data: lead } = await supabase
-          .from('leads')
-          .select('id, bot_active')
-          .eq('phone', phone)
-          .eq('channel', 'wa')
-          .single();
-
-        if (!lead) {
-          const { data: newLead } = await supabase
-            .from('leads')
-            .insert({ name, phone, channel: 'wa', status: 'nuevo' })
-            .select()
-            .single();
-          lead = newLead;
-        }
-
-        // 2. Guardar mensaje entrante
-        await supabase.from('messages').insert({
-          lead_id:   lead.id,
-          channel:   'wa',
-          direction: 'in',
-          text,
-          meta: { message_id: msgId }
-        });
-
-        // 3. Bot responde
-        const botReply = await processIncomingMessage(lead.id, text, 'wa');
-
-        // 4. Si hay respuesta del bot, enviar por WhatsApp
-        if (botReply) {
-          await sendWhatsAppMessage(phone, botReply);
-        }
+      if (!body.object || body.object !== 'whatsapp_business_account') {
+        return res.status(200).send('OK');
       }
+      const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+      if (!message || !message.text?.body) {
+        return res.status(200).send('OK');
+      }
+      const from = message.from;
+      const text = message.text.body;
+      const phoneNumberId = process.env.WA_PHONE_NUMBER_ID;
+      const accessToken = process.env.WA_ACCESS_TOKEN;
 
-      return res.status(200).json({ ok: true });
-    } catch (err) {
-      console.error('WA webhook error:', err);
-      return res.status(500).json({ error: err.message });
+      await supabase.from('messages').insert({
+        phone: from,
+        message: text,
+        direction: 'inbound',
+        channel: 'whatsapp',
+        created_at: new Date().toISOString()
+      });
+
+      const botReply = await generateBotResponse(text, from);
+
+      await fetch(`https://graph.facebook.com/v18.0/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: from,
+          type: 'text',
+          text: { body: botReply }
+        })
+      });
+
+      await supabase.from('messages').insert({
+        phone: from,
+        message: botReply,
+        direction: 'outbound',
+        channel: 'whatsapp',
+        created_at: new Date().toISOString()
+      });
+
+      return res.status(200).send('OK');
+    } catch (error) {
+      console.error('Error:', error);
+      return res.status(200).send('OK');
     }
   }
 
-  return res.status(405).json({ error: 'Method not allowed' });
+  return res.status(405).send('Method Not Allowed');
 };
-
-async function sendWhatsAppMessage(to, text) {
-  const resp = await fetch(
-    const phoneId = process.env.WA_PHONE_NUMBER_ID || process.env['ID_DE_NÚMERO_DE_TELÉFONO_WA'];
-    `https://graph.facebook.com/v19.0/${phoneId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.WA_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to,
-        type: 'text',
-        text: { body: text }
-      })
-    }
-  );
-  if (!resp.ok) {
-    console.error('Error enviando WA:', await resp.text());
-  }
-}
