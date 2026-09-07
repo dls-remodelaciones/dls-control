@@ -1,9 +1,19 @@
 {
   "version": 2,
+  "builds": [
+    { "src": "webhook-whatsapp.js", "use": "@vercel/node" },
+    { "src": "webhook-instagram.js", "use": "@vercel/node" },
+    { "src": "send-message.js", "use": "@vercel/node" },
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "manifest.json", "use": "@vercel/static" },
+    { "src": "sw.js", "use": "@vercel/static" }
+  ],
   "routes": [
-    { "src": "/api/webhook-whatsapp", "dest": "/api/webhook-whatsapp.js" },
-    { "src": "/api/webhook-instagram", "dest": "/api/webhook-instagram.js" },
-    { "src": "/api/send-message", "dest": "/api/send-message.js" },
-    { "src": "/(.*)", "dest": "/public/$1" }
+    { "src": "/api/webhook-whatsapp", "dest": "/webhook-whatsapp.js" },
+    { "src": "/api/webhook-instagram", "dest": "/webhook-instagram.js" },
+    { "src": "/api/send-message", "dest": "/send-message.js" },
+    { "src": "/manifest.json", "dest": "/manifest.json" },
+    { "src": "/sw.js", "dest": "/sw.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
