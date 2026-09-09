@@ -53,5 +53,12 @@ En tu proyecto de Vercel → Settings → Environment Variables:
 
 1. Abrir `https://tu-app.vercel.app` en Chrome/Safari del celular
 2. En iOS: Safari → compartir → "Agregar a pantalla de inicio"
-3. En Android: Chrome → menú → "Instalar app"
-4. Aparece en la pantalla de inicio como una app normal
+
+3. ## Paso 7: Cotizador DLS
+
+4. - Archivo `dls-cotizador-embed.js` integrado en index.html
+   - - Se activa al hacer click en el boton "Cotizar / Iniciar ahora"
+     - - GitHub conectado a Vercel para auto-deploy desde 2026-09-09
+       - 
+5. En Android: Chrome → menú → "Instalar app"
+6. Aparece en la pantalla de inicio como una app normal
