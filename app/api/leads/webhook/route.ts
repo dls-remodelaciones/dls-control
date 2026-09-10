@@ -55,23 +55,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "origen_no_permitido" }, { status: 403, headers });
   }
 
-  // 2. Token compartido — filtro de ruido, no seguridad.
-  const esperado = process.env.DLS_WEBHOOK_TOKEN;
-  if (esperado && req.headers.get("x-dls-token") !== esperado) {
-    return NextResponse.json({ ok: false, error: "token_invalido" }, { status: 401, headers });
-  }
-
   const db = supabaseAdmin();
   if (!db) {
     return NextResponse.json({ ok: false, error: "sin_base_de_datos" }, { status: 500, headers });
   }
 
+  // El cuerpo se lee como texto y se parsea a mano: así el cliente puede mandarlo
+  // como `text/plain` y evitar el preflight de CORS (ver nota del token abajo).
   let body: Record<string, unknown>;
   try {
-    body = await req.json();
+    body = JSON.parse(await req.text());
   } catch {
     return NextResponse.json({ ok: false, error: "json_invalido" }, { status: 400, headers });
   }
+
+  // 2. Token compartido — filtro de ruido, no seguridad.
+  //    Se acepta en el cuerpo ADEMAS de en la cabecera: una cabecera propia
+  //    obliga al navegador a hacer un preflight OPTIONS, y si ese preflight
+  //    falla (red restrictiva, extension, pestaña vieja) el lead se pierde en
+  //    silencio. Mandarlo en el cuerpo con text/plain lo convierte en una
+  //    peticion simple, sin preflight. Da igual para la seguridad: el token
+  //    viaja en el JS publico de todas formas.
+  const esperado = process.env.DLS_WEBHOOK_TOKEN;
+  const recibido = req.headers.get("x-dls-token") || String(body.token ?? "");
+  if (esperado && recibido !== esperado) {
+    return NextResponse.json({ ok: false, error: "token_invalido" }, { status: 401, headers });
+  }
+  delete body.token;
 
   const txt = (v: unknown, max = 300) => String(v ?? "").trim().slice(0, max);
 
