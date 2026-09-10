@@ -393,6 +393,7 @@ La app está lista cuando, **con el computador de Daniel apagado**:
 
 | Fecha | Fase | Avance |
 |---|---|---|
+| 2026-09-10 | 1 | **Canal web enchufado.** Chatbot y cotizador mandan el lead en tiempo real al webhook, ademas del correo. Probado de punta a punta desde dlsremodelaciones.cl: score 95, clase A, "LLAMAR HOY". |
 | 2026-09-10 | 0 | **FASE 0 COMPLETA. App viva en https://dls-control.vercel.app** (ver detalle abajo). |
 | 2026-09-10 | — | Especificación creada. Definido el salto de artifact dependiente del computador a app propia con backend, realtime y push. |
 
