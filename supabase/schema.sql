@@ -20,7 +20,9 @@ create table if not exists leads (
   financiamiento        text,            -- propio|credito|por_definir
   plazo                 text,            -- inmediato|1-3_meses|3-6_meses|explorando
   propiedad             text,            -- propia|arriendo|por_comprar
-  score                 int  default 0,
+  -- numeric, no int: la completitud es proporcional (3/4 datos = 7,5 puntos),
+  -- asi que el score sale con un decimal.
+  score                 numeric(5,1) default 0,
   clasificacion         text,            -- A|B|C|D
   desglose              jsonb default '[]'::jsonb,   -- de dónde salió cada punto
   apto_para_llamar      boolean default false,
