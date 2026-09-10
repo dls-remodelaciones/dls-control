@@ -393,11 +393,56 @@ La app está lista cuando, **con el computador de Daniel apagado**:
 
 | Fecha | Fase | Avance |
 |---|---|---|
+| 2026-09-10 | 1 | **FASE 1 COMPLETA.** Webhook, dedupe, scoring, realtime y varios proyectos por persona. Validado con un lead real (ver abajo). |
 | 2026-09-10 | 1 | **Canal web enchufado.** Chatbot y cotizador mandan el lead en tiempo real al webhook, ademas del correo. Probado de punta a punta desde dlsremodelaciones.cl: score 95, clase A, "LLAMAR HOY". |
 | 2026-09-10 | 0 | **FASE 0 COMPLETA. App viva en https://dls-control.vercel.app** (ver detalle abajo). |
 | 2026-09-10 | — | Especificación creada. Definido el salto de artifact dependiente del computador a app propia con backend, realtime y push. |
 
 ---
+
+## FASE 1 — validada con un cliente real
+
+**El caso Tamara Mednik.** Daniel le pidio a una clienta real que probara el sitio. Lo que
+salio de ahi vale mas que todas las pruebas sinteticas juntas:
+
+**1. El chatbot v2 califica mucho mejor que el v1.** Por la manana entro como **B 69**; por la
+tarde, con las preguntas nuevas de plazo y propiedad, como **A 87**. No cambio ella: cambio lo
+que se le pregunto. Estaba mal calificada por falta de preguntas, no por falta de interes.
+
+**2. Su primer intento no llego al webhook.** El correo salio, la peticion nunca llego al
+servidor — y sin peticion no hay log, asi que no hay forma de probar la causa. Lo mas probable:
+tenia la pagina abierta desde antes y completo el formulario con el JavaScript viejo en memoria.
+En vez de solo suponer, se elimino la clase entera de fallo:
+- La cabecera `X-DLS-Token` obligaba a un **preflight OPTIONS**. Ahora el token tambien se
+  acepta en el cuerpo y el cliente manda `text/plain`: peticion simple, sin preflight.
+- Si el `fetch` falla, reintenta con `navigator.sendBeacon`, que sale aun con la pagina cerrandose.
+- La cabecera se sigue aceptando: ningun cliente viejo se rompe.
+En el segundo intento, con la pestaña recien abierta, **entro sin problema**.
+
+**3. Una persona puede querer varias cosas.** Tamara pidio cuatro proyectos distintos. El dedupe
+hacia lo correcto al no duplicarla, pero cada consulta pisaba la anterior: su ficha mostraba solo
+la ultima. Los datos no se perdian, pero **la tarjeta que Daniel mira para decidir a quien llamar
+mostraba media historia**. Se agrego la columna `proyectos` y ahora se acumulan todos.
+
+**El proyecto principal se elige por tamaño real (uf_m2 x m2), no por tramo de presupuesto.**
+Por tramo, un baño "sobre rango" ($7M) le ganaria a una casa completa "en rango" (~2.000 UF,
+sobre $80M). Con Tamara quedo bien: principal = casa completa 120 m2 en La Reina, y las otras
+tres listadas debajo.
+
+### Otras trampas de la Fase 1
+
+- **La columna `score` era `int`** y el motor produce decimales (completitud proporcional:
+  3 de 4 datos = 7,5). `invalid input syntax for type integer: "27.5"`. Los primeros leads
+  pasaron solo porque sus scores eran redondos.
+- **El cotizador corre en un `<iframe>` con `srcdoc`**: ahi dentro `window.DLSLead` no existe y
+  `location.hostname` viene vacio. El primer enganche no habria hecho nada, en silencio.
+- **El navegador cacheaba el JS viejo.** Ahora los `<script>` llevan `?v=<hash del contenido>`.
+  Esto le pasaba a los visitantes tambien: cada deploy quedaba invisible hasta limpiar cache.
+- **`panelSent` no se reiniciaba** en `reset()`: la segunda cotizacion de una visita no llegaba.
+- **La app mostraba 0 leads con la base llena.** No era un bug: era el RLS haciendo su trabajo
+  con una sesion inexistente. Faltaba el ingreso por magic link.
+- **El `Site URL` de Supabase apuntaba a `localhost:3000`**: el enlace magico habria mandado a
+  Daniel a su propio computador.
 
 ## FASE 0 — lo que quedó hecho (2026-09-10)
 
