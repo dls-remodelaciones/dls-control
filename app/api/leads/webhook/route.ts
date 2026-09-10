@@ -8,8 +8,21 @@ import {
   normalizarPlazo,
   normalizarPropiedad,
   emailValido,
+  tierPresupuesto,
+  config,
   type Lead,
+  type TipoProyecto,
 } from "@/lib/negocio";
+
+/** Un proyecto pedido por esta persona. Una misma persona puede pedir varios. */
+interface Proyecto {
+  tipo: string;
+  comuna: string;
+  m2: number;
+  presupuesto: string;
+  tier: string;
+  fecha: string;
+}
 
 /**
  * Entrada de leads en tiempo real. La usan el cotizador, el chatbot y el
@@ -125,6 +138,40 @@ export async function POST(req: NextRequest) {
     .limit(1);
   const previo = previos?.[0] ?? null;
 
+  // 4b. Una persona puede querer varias cosas. En vez de que el proyecto nuevo
+  //     pise al anterior, se acumulan todos y manda el mas grande (ver abajo):
+  //     ese es el que decide el score y el que conviene mencionar al llamar.
+  const proyectos: Proyecto[] = Array.isArray(previo?.proyectos) ? [...previo.proyectos] : [];
+  if (lead.tipo_proyecto || lead.rango_presupuesto) {
+    const nuevo: Proyecto = {
+      tipo: lead.tipo_proyecto,
+      comuna: lead.comuna,
+      m2: lead.superficie_m2,
+      presupuesto: lead.rango_presupuesto,
+      tier: tierPresupuesto(lead.tipo_proyecto, lead.rango_presupuesto),
+      fecha: new Date().toISOString(),
+    };
+    // No repetir el mismo proyecto si vuelve a mandar lo mismo.
+    const igual = (a: Proyecto, b: Proyecto) =>
+      a.tipo === b.tipo && a.comuna === b.comuna && a.m2 === b.m2 && a.presupuesto === b.presupuesto;
+    if (!proyectos.some((p) => igual(p, nuevo))) proyectos.push(nuevo);
+  }
+
+  // El proyecto principal se elige por TAMAÑO REAL, no por tramo de presupuesto.
+  // Por tramo, un baño "sobre rango" ($7M) le ganaría a una casa completa
+  // "en rango" (~2.000 UF, sobre $80M) — y a Daniel le interesa hablar de la casa.
+  // La magnitud sale de las UF/m² del tipo por la superficie, que es la misma
+  // lógica de precios del cotizador.
+  const magnitud = (p: Proyecto) => {
+    const t = p.tipo ? config().tipos[p.tipo as TipoProyecto] : null;
+    return t && p.m2 > 0 ? t.uf_m2 * p.m2 : 0;
+  };
+  const principal = proyectos.length
+    ? [...proyectos].sort(
+        (a, b) => magnitud(b) - magnitud(a) || Date.parse(b.fecha) - Date.parse(a.fecha),
+      )[0]
+    : null;
+
   // Al fusionar gana el dato nuevo, pero un campo vacío nunca borra uno lleno.
   const fusion: Record<string, unknown> = previo ? { ...previo } : {};
   for (const [k, v] of Object.entries(lead)) {
@@ -132,6 +179,14 @@ export async function POST(req: NextRequest) {
     if (!vacio) fusion[k] = v;
   }
   if (previo?.fotos?.length && !lead.fotos?.length) fusion.fotos = previo.fotos;
+
+  // Las columnas sueltas reflejan el proyecto principal, no el último que llegó.
+  if (principal) {
+    fusion.tipo_proyecto = principal.tipo;
+    fusion.comuna = principal.comuna;
+    fusion.superficie_m2 = principal.m2;
+    fusion.rango_presupuesto = principal.presupuesto;
+  }
 
   const cal = calificar({
     ...(fusion as unknown as Lead),
@@ -153,6 +208,7 @@ export async function POST(req: NextRequest) {
     plazo: fusion.plazo || null,
     propiedad: fusion.propiedad || null,
     fotos: fusion.fotos ?? [],
+    proyectos,
     score: cal.score,
     clasificacion: cal.clasificacion,
     desglose: cal.desglose,

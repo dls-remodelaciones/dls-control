@@ -4,6 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, configurado } from "@/lib/supabase";
 import { telHref, waHref, config, type Clase, type Lead } from "@/lib/negocio";
 
+type Proyecto = {
+  tipo: string;
+  comuna: string;
+  m2: number;
+  presupuesto: string;
+  tier: string;
+  fecha: string;
+};
+
 type Fila = Lead & {
   id: string;
   clasificacion: Clase;
@@ -11,6 +20,7 @@ type Fila = Lead & {
   apto_para_llamar: boolean;
   estado: string;
   creado: string;
+  proyectos?: Proyecto[];
 };
 
 type Tab = "hoy" | "bandeja" | "pipeline";
@@ -270,6 +280,10 @@ function Ficha({ f }: { f: Fila }) {
   const sub = [tipo, f.superficie_m2 ? `${f.superficie_m2} m²` : "", f.rango_presupuesto]
     .filter(Boolean)
     .join(" · ");
+  // El proyecto principal ya se muestra arriba; estos son los demas que pidio.
+  const otros = (f.proyectos ?? []).filter(
+    (p) => !(p.tipo === f.tipo_proyecto && p.comuna === f.comuna && p.m2 === f.superficie_m2),
+  );
   const color = CLASE_COLOR[f.clasificacion] ?? "var(--color-c)";
 
   return (
@@ -295,6 +309,26 @@ function Ficha({ f }: { f: Fila }) {
           {sub && (
             <div className="mt-0.5 text-[12.5px] break-words" style={{ color: "var(--color-muted)" }}>
               {sub}
+            </div>
+          )}
+          {/* Una persona puede pedir varias cosas. Arriba va la principal — la de
+              mayor presupuesto — y aquí las demás, para no llamar a medias. */}
+          {otros.length > 0 && (
+            <div className="mt-1.5 text-[12px]" style={{ color: "var(--color-muted)" }}>
+              <span style={{ color: "var(--color-b)" }}>
+                También pidió {otros.length === 1 ? "otro proyecto" : `otros ${otros.length} proyectos`}:
+              </span>{" "}
+              {otros
+                .map((p) =>
+                  [
+                    p.tipo ? config().tipos[p.tipo as keyof ReturnType<typeof config>["tipos"]]?.label ?? p.tipo : "",
+                    p.m2 ? `${p.m2} m²` : "",
+                    p.comuna,
+                  ]
+                    .filter(Boolean)
+                    .join(" "),
+                )
+                .join(" · ")}
             </div>
           )}
         </div>

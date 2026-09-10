@@ -32,6 +32,9 @@ create table if not exists leads (
   respondido            boolean default false,
   nota_interna          text,
   motivo_no_prospero    text,
+  -- Una persona puede pedir varias cosas. Las columnas sueltas guardan el
+  -- proyecto PRINCIPAL (el de mayor presupuesto); aqui estan todos.
+  proyectos             jsonb not null default '[]'::jsonb,
   fotos                 jsonb default '[]'::jsonb,
   proxima_accion        text,
   fecha_proxima_accion  timestamptz,
