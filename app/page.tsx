@@ -28,6 +28,28 @@ export default function Pagina() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("hoy");
   const [filtro, setFiltro] = useState<Clase | null>(null);
+  const [sesion, setSesion] = useState<"revisando" | "dentro" | "fuera">("revisando");
+
+  // La base no le muestra nada a quien no tiene sesión (Row Level Security),
+  // así que sin ingresar no tiene sentido ni intentar leer.
+  useEffect(() => {
+    const sb = supabase;
+    if (!sb) {
+      setSesion("fuera");
+      return;
+    }
+    void sb.auth.getSession().then(({ data }) => {
+      setSesion(data.session ? "dentro" : "fuera");
+    });
+    const { data: sub } = sb.auth.onAuthStateChange((_e, s) => {
+      setSesion(s ? "dentro" : "fuera");
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (sesion === "fuera") window.location.replace("/login");
+  }, [sesion]);
 
   const cargar = useCallback(async () => {
     if (!supabase) {
@@ -46,6 +68,7 @@ export default function Pagina() {
   }, []);
 
   useEffect(() => {
+    if (sesion !== "dentro") return;
     void cargar();
     const sb = supabase;
     if (!sb) return;
@@ -57,7 +80,7 @@ export default function Pagina() {
     return () => {
       void sb.removeChannel(canal);
     };
-  }, [cargar]);
+  }, [cargar, sesion]);
 
   const conteos = useMemo(() => {
     const listaA = filas.filter(
@@ -80,6 +103,17 @@ export default function Pagina() {
     if (filtro) v = v.filter((f) => f.clasificacion === filtro);
     return v;
   }, [filas, tab, filtro, conteos.listaA]);
+
+  /* Mientras se resuelve la sesión, la pantalla no parpadea con datos vacíos. */
+  if (sesion !== "dentro") {
+    return (
+      <Marco>
+        <p className="px-4 py-8 text-[13px]" style={{ color: "var(--color-muted)" }}>
+          {sesion === "revisando" ? "Verificando tu sesión…" : "Llevándote al ingreso…"}
+        </p>
+      </Marco>
+    );
+  }
 
   /* Sin configurar: decirlo, no fingir que funciona. */
   if (!configurado) {
