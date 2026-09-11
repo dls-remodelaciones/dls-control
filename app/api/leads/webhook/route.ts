@@ -1,42 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import {
-  calificar,
-  normalizarTelefono,
-  normalizarM2,
-  normalizarTipo,
-  normalizarPlazo,
-  normalizarPropiedad,
-  emailValido,
-  tierPresupuesto,
-  config,
-  type Lead,
-  type TipoProyecto,
-} from "@/lib/negocio";
-
-/** Un proyecto pedido por esta persona. Una misma persona puede pedir varios. */
-interface Proyecto {
-  tipo: string;
-  comuna: string;
-  m2: number;
-  presupuesto: string;
-  tier: string;
-  fecha: string;
-}
+import { registrarLead, type EntradaLead } from "@/lib/registrar-lead";
 
 /**
  * Entrada de leads en tiempo real. La usan el cotizador, el chatbot y el
  * formulario del sitio.
+ *
+ * Esta ruta es sólo la PUERTA: valida de dónde viene y con qué token. Las
+ * reglas de negocio — dedupe, multi-proyecto, puntaje, etiquetas — viven en
+ * `lib/registrar-lead.ts`, compartidas con el webhook de WhatsApp. Se separaron
+ * al conectar WhatsApp: tenerlas dos veces habría garantizado que algún día
+ * cambien en un lado y no en el otro.
  *
  * Sobre la autenticación, con honestidad: el token viaja en el JavaScript
  * público del sitio, así que **cualquiera que mire el código fuente lo ve**.
  * No es un secreto, es un filtro de ruido. Lo que de verdad protege esto es:
  *   1. la validación de origen (solo dlsremodelaciones.cl y localhost),
  *   2. el dedupe, que impide inflar la base con el mismo lead repetido.
- *
- * Lo que este webhook NO hace es filtrar por calidad. Regla de Daniel del
- * 2026-09-11: entra todo el que dé algún dato, aunque no deje cómo contactarlo;
- * se clasifica, no se descarta. Lo único que se rechaza es un envío vacío.
  * Si algún día esto recibe spam en serio, la respuesta es un captcha en el
  * formulario o rate limiting por IP, no un token más largo.
  */
@@ -71,14 +50,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "origen_no_permitido" }, { status: 403, headers });
   }
 
-  const db = supabaseAdmin();
-  if (!db) {
-    return NextResponse.json({ ok: false, error: "sin_base_de_datos" }, { status: 500, headers });
-  }
-
   // El cuerpo se lee como texto y se parsea a mano: así el cliente puede mandarlo
   // como `text/plain` y evitar el preflight de CORS (ver nota del token abajo).
-  let body: Record<string, unknown>;
+  let body: EntradaLead;
   try {
     body = JSON.parse(await req.text());
   } catch {
@@ -99,240 +73,12 @@ export async function POST(req: NextRequest) {
   }
   delete body.token;
 
-  const txt = (v: unknown, max = 300) => String(v ?? "").trim().slice(0, max);
-
-  const telefono = normalizarTelefono(body.telefono);
-  const email = emailValido(body.email) ? txt(body.email, 200).toLowerCase() : "";
-
-  const sesionId = txt(body.sesion_id, 60);
-  const hayContacto = Boolean(telefono || email);
-
-  // 3. Regla de Daniel (2026-09-11): **todo lead entra**, tenga o no forma de
-  //    contacto. Antes esto devolvía 422 y la persona desaparecía entera, con
-  //    su comuna, sus m² y su presupuesto ya declarados. Ahora entra marcada
-  //    como SIN CONTACTO; no ensucia "llamar hoy" porque esa lista filtra por
-  //    apto_para_llamar, que sigue exigiendo teléfono válido.
-  //
-  //    El único filtro que queda es contra el ruido: un envío sin contacto y
-  //    sin un solo dato útil no es una persona, es una petición vacía.
-  const hayAlgoQueContar =
-    Boolean(txt(body.nombre, 120)) ||
-    Boolean(normalizarTipo(body.tipo_proyecto)) ||
-    Boolean(txt(body.comuna, 80)) ||
-    normalizarM2(body.superficie_m2) > 0 ||
-    Boolean(txt(body.rango_presupuesto, 80));
-
-  if (!hayContacto && !hayAlgoQueContar) {
+  const r = await registrarLead(body);
+  if (!r.ok) {
     return NextResponse.json(
-      { ok: false, error: "sin_datos", detalle: "Ni contacto ni datos del proyecto." },
-      { status: 422, headers },
+      { ok: false, error: r.error, detalle: r.detalle },
+      { status: r.status, headers },
     );
   }
-
-  // Sin teléfono ni correo no hay con qué deduplicar: cada avance del mismo
-  // visitante abriría una ficha nueva. Para eso viaja el id de la visita.
-  if (!hayContacto && !sesionId) {
-    return NextResponse.json(
-      { ok: false, error: "falta_sesion", detalle: "Un lead sin contacto necesita sesion_id." },
-      { status: 422, headers },
-    );
-  }
-
-  const lead: Lead = {
-    canal: txt(body.canal, 40) || "web",
-    nombre: txt(body.nombre, 120) || "Sin nombre",
-    telefono,
-    telefono_crudo: txt(body.telefono, 60),
-    email,
-    tipo_proyecto: normalizarTipo(body.tipo_proyecto),
-    comuna: txt(body.comuna, 80),
-    superficie_m2: normalizarM2(body.superficie_m2),
-    rango_presupuesto: txt(body.rango_presupuesto, 80),
-    financiamiento: txt(body.financiamiento, 40),
-    plazo: normalizarPlazo(body.plazo),
-    propiedad: normalizarPropiedad(body.propiedad),
-    fotos: Array.isArray(body.fotos) ? body.fotos.slice(0, 20) : [],
-    termino_cotizador: body.canal === "cotizador" || Boolean(body.cotizacion),
-  };
-
-  // 4. Dedupe por teléfono o correo (§4.1): si ya existe, se enriquece y se
-  //    recalcula el score — no se crea un lead nuevo.
-  //
-  //    El sesion_id se busca ADEMÁS de los otros dos, y es lo que cierra el
-  //    caso importante: alguien avanza sin dejar datos (se guarda como SIN
-  //    CONTACTO con su sesion_id) y más adelante, en la misma visita, sí deja
-  //    el teléfono. Ese último envío trae contacto Y sesion_id, encuentra la
-  //    ficha que ya existía y la completa, en vez de dejar dos.
-  const filtros: string[] = [];
-  if (telefono) filtros.push(`telefono.eq.${telefono}`);
-  if (email) filtros.push(`email.eq.${email}`);
-  if (sesionId) filtros.push(`sesion_id.eq.${sesionId}`);
-  const { data: previos } = await db
-    .from("leads")
-    .select("*")
-    .or(filtros.join(","))
-    .limit(1);
-  const previo = previos?.[0] ?? null;
-
-  // 4b. Una persona puede querer varias cosas. En vez de que el proyecto nuevo
-  //     pise al anterior, se acumulan todos y manda el mas grande (ver abajo):
-  //     ese es el que decide el score y el que conviene mencionar al llamar.
-  const proyectos: Proyecto[] = Array.isArray(previo?.proyectos) ? [...previo.proyectos] : [];
-  if (lead.tipo_proyecto || lead.rango_presupuesto) {
-    const nuevo: Proyecto = {
-      tipo: lead.tipo_proyecto,
-      comuna: lead.comuna,
-      m2: lead.superficie_m2,
-      presupuesto: lead.rango_presupuesto,
-      tier: tierPresupuesto(lead.tipo_proyecto, lead.rango_presupuesto),
-      fecha: new Date().toISOString(),
-    };
-    // No repetir el mismo proyecto si vuelve a mandar lo mismo.
-    const igual = (a: Proyecto, b: Proyecto) =>
-      a.tipo === b.tipo && a.comuna === b.comuna && a.m2 === b.m2 && a.presupuesto === b.presupuesto;
-    if (!proyectos.some((p) => igual(p, nuevo))) proyectos.push(nuevo);
-  }
-
-  // El proyecto principal se elige por TAMAÑO REAL, no por tramo de presupuesto.
-  // Por tramo, un baño "sobre rango" ($7M) le ganaría a una casa completa
-  // "en rango" (~2.000 UF, sobre $80M) — y a Daniel le interesa hablar de la casa.
-  // La magnitud sale de las UF/m² del tipo por la superficie, que es la misma
-  // lógica de precios del cotizador.
-  const magnitud = (p: Proyecto) => {
-    const t = p.tipo ? config().tipos[p.tipo as TipoProyecto] : null;
-    return t && p.m2 > 0 ? t.uf_m2 * p.m2 : 0;
-  };
-  const principal = proyectos.length
-    ? [...proyectos].sort(
-        (a, b) => magnitud(b) - magnitud(a) || Date.parse(b.fecha) - Date.parse(a.fecha),
-      )[0]
-    : null;
-
-  // Al fusionar gana el dato nuevo, pero un campo vacío nunca borra uno lleno.
-  const fusion: Record<string, unknown> = previo ? { ...previo } : {};
-  for (const [k, v] of Object.entries(lead)) {
-    const vacio = v === "" || v === 0 || v == null || (Array.isArray(v) && v.length === 0);
-    if (!vacio) fusion[k] = v;
-  }
-  if (previo?.fotos?.length && !lead.fotos?.length) fusion.fotos = previo.fotos;
-
-  // Las columnas sueltas reflejan el proyecto principal, no el último que llegó.
-  if (principal) {
-    fusion.tipo_proyecto = principal.tipo;
-    fusion.comuna = principal.comuna;
-    fusion.superficie_m2 = principal.m2;
-    fusion.rango_presupuesto = principal.presupuesto;
-  }
-
-  const cal = calificar({
-    ...(fusion as unknown as Lead),
-    termino_cotizador: Boolean(fusion.termino_cotizador) || Boolean(previo?.termino_cotizador),
-    respondio_followup: Boolean(previo?.respondio_followup),
-  });
-
-  const registro = {
-    canal: fusion.canal,
-    nombre: fusion.nombre,
-    telefono: fusion.telefono || null,
-    telefono_crudo: fusion.telefono_crudo || null,
-    email: fusion.email || null,
-    tipo_proyecto: fusion.tipo_proyecto || null,
-    comuna: fusion.comuna || null,
-    superficie_m2: fusion.superficie_m2 || null,
-    rango_presupuesto: fusion.rango_presupuesto || null,
-    financiamiento: fusion.financiamiento || null,
-    plazo: fusion.plazo || null,
-    propiedad: fusion.propiedad || null,
-    fotos: fusion.fotos ?? [],
-    proyectos,
-    score: cal.score,
-    clasificacion: cal.clasificacion,
-    desglose: cal.desglose,
-    apto_para_llamar: cal.apto_para_llamar,
-    fuente_original: txt(body.fuente_original, 200) || txt(body.canal, 40),
-    sesion_id: sesionId || previo?.sesion_id || null,
-    ultima_actividad: new Date().toISOString(),
-  };
-
-  // La ficha se marca por lo que se sabe DESPUÉS de fusionar, no por lo que
-  // traía este envío: alguien que ayer entró sin datos y hoy deja el teléfono
-  // deja de ser SIN CONTACTO. Y al revés, una etiqueta que Daniel ya movió a
-  // mano (SEGUIMIENTO, VISITA AGENDADA) no se pisa.
-  const contactableAhora = Boolean(fusion.telefono || fusion.email);
-  const etiquetaPrevia = txt(previo?.etiqueta, 40);
-  const etiquetaAutomatica = etiquetaPrevia === "" || etiquetaPrevia === "NUEVO" || etiquetaPrevia === "SIN CONTACTO";
-  const etiqueta = contactableAhora ? "NUEVO" : "SIN CONTACTO";
-
-  let id = previo?.id as string | undefined;
-  let creado = false;
-
-  if (previo) {
-    const { error } = await db
-      .from("leads")
-      .update(etiquetaAutomatica ? { ...registro, etiqueta } : registro)
-      .eq("id", previo.id);
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500, headers });
-    }
-  } else {
-    const { data, error } = await db
-      .from("leads")
-      .insert({ ...registro, estado: "contacto_inicial", etiqueta })
-      .select("id")
-      .single();
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500, headers });
-    }
-    id = data.id as string;
-    creado = true;
-  }
-
-  // 5. Rastro de lo que llegó, para poder auditar y para el historial del lead.
-  if (id) {
-    await db.from("mensajes").insert({
-      lead_id: id,
-      direccion: "entrante",
-      canal: lead.canal,
-      asunto: creado ? "Lead nuevo" : "Lead actualizado",
-      cuerpo: JSON.stringify(body).slice(0, 4000),
-      enviado_por: "sistema",
-    });
-    await db.from("actividad").insert({
-      lead_id: id,
-      tipo: "score",
-      antes: previo ? { score: previo.score, clasificacion: previo.clasificacion } : null,
-      despues: { score: cal.score, clasificacion: cal.clasificacion },
-      quien: "sistema",
-    });
-    if (body.cotizacion && typeof body.cotizacion === "object") {
-      const c = body.cotizacion as Record<string, unknown>;
-      await db.from("cotizaciones").insert({
-        lead_id: id,
-        tipo_proyecto: lead.tipo_proyecto || null,
-        superficie_m2: lead.superficie_m2 || null,
-        uf_m2: Number(c.uf_m2) || null,
-        monto_min: Number(c.monto_min) || null,
-        monto_max: Number(c.monto_max) || null,
-        partidas: c.partidas ?? [],
-      });
-    }
-  }
-
-  return NextResponse.json(
-    {
-      ok: true,
-      id,
-      creado,
-      actualizado: !creado,
-      score: cal.score,
-      clasificacion: cal.clasificacion,
-      apto_para_llamar: cal.apto_para_llamar,
-      accion: cal.accion,
-      // Para que el sitio sepa si alcanzó a dejar contacto o quedó como
-      // registro de paso. Útil al depurar y al leer los logs del navegador.
-      etiqueta: etiquetaAutomatica || creado ? etiqueta : etiquetaPrevia,
-      contactable: contactableAhora,
-    },
-    { headers },
-  );
+  return NextResponse.json(r, { headers });
 }
