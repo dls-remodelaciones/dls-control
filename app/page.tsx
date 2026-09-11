@@ -25,6 +25,17 @@ type Fila = Lead & {
 
 type Tab = "hoy" | "bandeja" | "pipeline";
 
+/**
+ * Tope de leads que se traen de una vez.
+ *
+ * Estaba en 200, y como la lista viene ordenada por puntaje, al pasar ese
+ * número los que se caían eran los de puntaje MÁS BAJO — justo los que Daniel
+ * exige que nunca desaparezcan (regla del 2026-09-11: entra todo, se
+ * clasifica, no se descarta). Con 1.000 hay años de holgura a 40 leads al mes,
+ * y si algún día se llena, la pantalla lo avisa en vez de esconderlo.
+ */
+const TOPE_LEADS = 1000;
+
 const CLASE_COLOR: Record<Clase, string> = {
   A: "var(--color-a)",
   B: "var(--color-b)",
@@ -71,7 +82,7 @@ export default function Pagina() {
       .select("*")
       .order("score", { ascending: false })
       .order("creado", { ascending: false })
-      .limit(200);
+      .limit(TOPE_LEADS);
     if (error) setError(error.message);
     else setFilas((data ?? []) as Fila[]);
     setCargando(false);
@@ -194,6 +205,13 @@ export default function Pagina() {
           {tab === "hoy" && conteos.a > 0 && (
             <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-muted)" }}>
               Todos ya pasaron el filtro: tienen presupuesto, plazo, comuna y teléfono.
+            </p>
+          )}
+          {/* Si se llegó al tope, decirlo. Un lead que no se ve es un lead perdido. */}
+          {filas.length >= TOPE_LEADS && (
+            <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-a)" }}>
+              Estás viendo {TOPE_LEADS} leads y hay más en la base. Avísame para ampliar la
+              lista — ninguno se borró.
             </p>
           )}
         </div>
