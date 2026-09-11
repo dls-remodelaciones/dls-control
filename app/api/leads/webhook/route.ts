@@ -32,8 +32,11 @@ interface Proyecto {
  * público del sitio, así que **cualquiera que mire el código fuente lo ve**.
  * No es un secreto, es un filtro de ruido. Lo que de verdad protege esto es:
  *   1. la validación de origen (solo dlsremodelaciones.cl y localhost),
- *   2. la validación de datos (sin nombre y sin forma de contacto, se rechaza),
- *   3. el dedupe, que impide inflar la base con el mismo lead repetido.
+ *   2. el dedupe, que impide inflar la base con el mismo lead repetido.
+ *
+ * Lo que este webhook NO hace es filtrar por calidad. Regla de Daniel del
+ * 2026-09-11: entra todo el que dé algún dato, aunque no deje cómo contactarlo;
+ * se clasifica, no se descarta. Lo único que se rechaza es un envío vacío.
  * Si algún día esto recibe spam en serio, la respuesta es un captcha en el
  * formulario o rate limiting por IP, no un token más largo.
  */
@@ -101,10 +104,36 @@ export async function POST(req: NextRequest) {
   const telefono = normalizarTelefono(body.telefono);
   const email = emailValido(body.email) ? txt(body.email, 200).toLowerCase() : "";
 
-  // 3. Sin forma de contactarlo, no es un lead.
-  if (!telefono && !email) {
+  const sesionId = txt(body.sesion_id, 60);
+  const hayContacto = Boolean(telefono || email);
+
+  // 3. Regla de Daniel (2026-09-11): **todo lead entra**, tenga o no forma de
+  //    contacto. Antes esto devolvía 422 y la persona desaparecía entera, con
+  //    su comuna, sus m² y su presupuesto ya declarados. Ahora entra marcada
+  //    como SIN CONTACTO; no ensucia "llamar hoy" porque esa lista filtra por
+  //    apto_para_llamar, que sigue exigiendo teléfono válido.
+  //
+  //    El único filtro que queda es contra el ruido: un envío sin contacto y
+  //    sin un solo dato útil no es una persona, es una petición vacía.
+  const hayAlgoQueContar =
+    Boolean(txt(body.nombre, 120)) ||
+    Boolean(normalizarTipo(body.tipo_proyecto)) ||
+    Boolean(txt(body.comuna, 80)) ||
+    normalizarM2(body.superficie_m2) > 0 ||
+    Boolean(txt(body.rango_presupuesto, 80));
+
+  if (!hayContacto && !hayAlgoQueContar) {
     return NextResponse.json(
-      { ok: false, error: "sin_contacto", detalle: "Se necesita teléfono o correo válido." },
+      { ok: false, error: "sin_datos", detalle: "Ni contacto ni datos del proyecto." },
+      { status: 422, headers },
+    );
+  }
+
+  // Sin teléfono ni correo no hay con qué deduplicar: cada avance del mismo
+  // visitante abriría una ficha nueva. Para eso viaja el id de la visita.
+  if (!hayContacto && !sesionId) {
+    return NextResponse.json(
+      { ok: false, error: "falta_sesion", detalle: "Un lead sin contacto necesita sesion_id." },
       { status: 422, headers },
     );
   }
@@ -128,9 +157,16 @@ export async function POST(req: NextRequest) {
 
   // 4. Dedupe por teléfono o correo (§4.1): si ya existe, se enriquece y se
   //    recalcula el score — no se crea un lead nuevo.
+  //
+  //    El sesion_id se busca ADEMÁS de los otros dos, y es lo que cierra el
+  //    caso importante: alguien avanza sin dejar datos (se guarda como SIN
+  //    CONTACTO con su sesion_id) y más adelante, en la misma visita, sí deja
+  //    el teléfono. Ese último envío trae contacto Y sesion_id, encuentra la
+  //    ficha que ya existía y la completa, en vez de dejar dos.
   const filtros: string[] = [];
   if (telefono) filtros.push(`telefono.eq.${telefono}`);
   if (email) filtros.push(`email.eq.${email}`);
+  if (sesionId) filtros.push(`sesion_id.eq.${sesionId}`);
   const { data: previos } = await db
     .from("leads")
     .select("*")
@@ -214,21 +250,34 @@ export async function POST(req: NextRequest) {
     desglose: cal.desglose,
     apto_para_llamar: cal.apto_para_llamar,
     fuente_original: txt(body.fuente_original, 200) || txt(body.canal, 40),
+    sesion_id: sesionId || previo?.sesion_id || null,
     ultima_actividad: new Date().toISOString(),
   };
+
+  // La ficha se marca por lo que se sabe DESPUÉS de fusionar, no por lo que
+  // traía este envío: alguien que ayer entró sin datos y hoy deja el teléfono
+  // deja de ser SIN CONTACTO. Y al revés, una etiqueta que Daniel ya movió a
+  // mano (SEGUIMIENTO, VISITA AGENDADA) no se pisa.
+  const contactableAhora = Boolean(fusion.telefono || fusion.email);
+  const etiquetaPrevia = txt(previo?.etiqueta, 40);
+  const etiquetaAutomatica = etiquetaPrevia === "" || etiquetaPrevia === "NUEVO" || etiquetaPrevia === "SIN CONTACTO";
+  const etiqueta = contactableAhora ? "NUEVO" : "SIN CONTACTO";
 
   let id = previo?.id as string | undefined;
   let creado = false;
 
   if (previo) {
-    const { error } = await db.from("leads").update(registro).eq("id", previo.id);
+    const { error } = await db
+      .from("leads")
+      .update(etiquetaAutomatica ? { ...registro, etiqueta } : registro)
+      .eq("id", previo.id);
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500, headers });
     }
   } else {
     const { data, error } = await db
       .from("leads")
-      .insert({ ...registro, estado: "contacto_inicial", etiqueta: "NUEVO" })
+      .insert({ ...registro, estado: "contacto_inicial", etiqueta })
       .select("id")
       .single();
     if (error) {
@@ -279,6 +328,10 @@ export async function POST(req: NextRequest) {
       clasificacion: cal.clasificacion,
       apto_para_llamar: cal.apto_para_llamar,
       accion: cal.accion,
+      // Para que el sitio sepa si alcanzó a dejar contacto o quedó como
+      // registro de paso. Útil al depurar y al leer los logs del navegador.
+      etiqueta: etiquetaAutomatica || creado ? etiqueta : etiquetaPrevia,
+      contactable: contactableAhora,
     },
     { headers },
   );

@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Código de la app anterior, guardado sólo como referencia: no se compila
+    // ni se despliega. Revisarlo con las reglas de hoy sólo genera ruido —
+    // eran 7 de los 9 errores que salían al correr eslint (2026-09-11).
+    "_legacy/**",
   ]),
 ]);
 
