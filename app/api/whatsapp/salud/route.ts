@@ -90,6 +90,31 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Opcional: `?waba=<id>` lista todos los números de esa cuenta con su
+    // identificador. Sirve para responder "¿cuál es el ID del número real?"
+    // sin tener que buscarlo a mano en los paneles de Meta.
+    let numeros: unknown = undefined;
+    const waba = req.nextUrl.searchParams.get("waba")?.trim() ?? "";
+    if (/^\d{5,25}$/.test(waba)) {
+      const rn = await fetch(
+        `${GRAPH}/${waba}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating`,
+        { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+      );
+      const jn = (await rn.json()) as Record<string, unknown>;
+      numeros = rn.ok
+        ? (jn.data as unknown[])?.map((n) => {
+            const x = n as Record<string, unknown>;
+            return {
+              id: String(x.id ?? ""),
+              telefono: String(x.display_phone_number ?? ""),
+              nombre: String(x.verified_name ?? ""),
+              calidad: String(x.quality_rating ?? ""),
+              es_el_configurado: String(x.id ?? "") === numeroId,
+            };
+          })
+        : { error: String((jn.error as Record<string, unknown>)?.message ?? "no se pudo listar") };
+    }
+
     return NextResponse.json({
       ok: true,
       token_vivo: true,
@@ -99,6 +124,7 @@ export async function GET(req: NextRequest) {
         calidad: String(cuerpo.quality_rating ?? ""),
         plataforma: String(cuerpo.platform_type ?? ""),
       },
+      ...(numeros ? { numeros_de_la_cuenta: numeros } : {}),
       configuracion,
       revisado: new Date().toISOString(),
     });
