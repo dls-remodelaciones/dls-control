@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { usuarioDeLaPeticion } from "@/lib/sesion";
 
 /**
  * Chequeo de salud de WhatsApp.
@@ -25,19 +25,9 @@ const GRAPH = "https://graph.facebook.com/v21.0";
 
 export async function GET(req: NextRequest) {
   // 1. Sesión del panel. El navegador manda el JWT de Supabase en Authorization.
-  const auth = req.headers.get("authorization") ?? "";
-  const jwt = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
-  if (!jwt) {
-    return NextResponse.json({ ok: false, error: "sin_sesion" }, { status: 401 });
-  }
-
-  const db = supabaseAdmin();
-  if (!db) {
-    return NextResponse.json({ ok: false, error: "sin_base_de_datos" }, { status: 500 });
-  }
-  const { data: sesion, error: errorSesion } = await db.auth.getUser(jwt);
-  if (errorSesion || !sesion?.user) {
-    return NextResponse.json({ ok: false, error: "sesion_invalida" }, { status: 401 });
+  const quien = await usuarioDeLaPeticion(req);
+  if (!quien.ok) {
+    return NextResponse.json({ ok: false, error: quien.error }, { status: quien.status });
   }
 
   // 2. Lo que debería estar configurado. Se reporta qué falta, sin revelar valores.

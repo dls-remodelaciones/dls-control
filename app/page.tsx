@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, configurado } from "@/lib/supabase";
 import { telHref, waHref, config, type Clase, type Lead } from "@/lib/negocio";
+import Conversacion from "./conversacion";
 
 type Proyecto = {
   tipo: string;
@@ -294,6 +295,9 @@ function Marco({ children }: { children: React.ReactNode }) {
 }
 
 function Ficha({ f }: { f: Fila }) {
+  // La conversación se carga solo cuando se abre: son decenas de fichas en
+  // pantalla y no tiene sentido pedirle a la base el historial de todas.
+  const [conversando, setConversando] = useState(false);
   const tipo = f.tipo_proyecto ? config().tipos[f.tipo_proyecto]?.label : "";
   const sub = [tipo, f.superficie_m2 ? `${f.superficie_m2} m²` : "", f.rango_presupuesto]
     .filter(Boolean)
@@ -377,20 +381,25 @@ function Ficha({ f }: { f: Fila }) {
           </span>
         )}
         {f.telefono && (
-          <a
-            href={waHref(f)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 border-r py-2.5 text-center text-[12.5px] font-medium"
-            style={{ borderColor: "var(--color-linesoft)" }}
+          <button
+            onClick={() => setConversando((v) => !v)}
+            className="flex-1 cursor-pointer border-r py-2.5 text-center text-[12.5px] font-medium"
+            style={{
+              borderColor: "var(--color-linesoft)",
+              color: conversando ? "var(--color-a)" : undefined,
+            }}
           >
-            WhatsApp
-          </a>
+            {conversando ? "Cerrar chat" : "WhatsApp"}
+          </button>
         )}
         <button className="flex-1 cursor-pointer py-2.5 text-center text-[12.5px] font-medium">
           Ver ficha
         </button>
       </div>
+
+      {conversando && f.telefono && (
+        <Conversacion leadId={f.id} telefono={f.telefono} alternativa={waHref(f)} />
+      )}
     </li>
   );
 }
