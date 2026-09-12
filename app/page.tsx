@@ -51,6 +51,8 @@ export default function Pagina() {
   const [tab, setTab] = useState<Tab>("hoy");
   const [filtro, setFiltro] = useState<Clase | null>(null);
   const [sesion, setSesion] = useState<"revisando" | "dentro" | "fuera">("revisando");
+  /** lead_id → fecha del mensaje entrante que todavía espera respuesta. */
+  const [sinResponder, setSinResponder] = useState<Map<string, string>>(new Map());
 
   // La base no le muestra nada a quien no tiene sesión (Row Level Security),
   // así que sin ingresar no tiene sentido ni intentar leer.
@@ -86,6 +88,30 @@ export default function Pagina() {
       .limit(TOPE_LEADS);
     if (error) setError(error.message);
     else setFilas((data ?? []) as Fila[]);
+
+    // Quién escribió y todavía no tiene respuesta. Va aparte del puntaje a
+    // propósito: alguien que te acaba de escribir es una obligación, no una
+    // clasificación. Un WhatsApp recién llegado no trae comuna ni presupuesto,
+    // así que puntúa bajo y quedaría enterrado junto a formularios abandonados
+    // hace semanas — siendo que es el lead más caliente que existe.
+    const { data: msg } = await supabase
+      .from("mensajes")
+      .select("lead_id, direccion, creado")
+      .eq("canal", "whatsapp")
+      .order("creado", { ascending: false })
+      .limit(500);
+
+    const ultimo = new Map<string, { direccion: string; creado: string }>();
+    for (const m of (msg ?? []) as { lead_id: string; direccion: string; creado: string }[]) {
+      // Vienen del más nuevo al más viejo: el primero de cada lead es el último.
+      if (m.lead_id && !ultimo.has(m.lead_id)) ultimo.set(m.lead_id, m);
+    }
+    const pendientes = new Map<string, string>();
+    for (const [id, m] of ultimo) {
+      if (m.direccion === "entrante") pendientes.set(id, m.creado);
+    }
+    setSinResponder(pendientes);
+
     setCargando(false);
   }, []);
 
@@ -118,13 +144,26 @@ export default function Pagina() {
     return { a: listaA.length, b, c, listaA };
   }, [filas]);
 
+  // Los que escribieron y esperan. Primero el que lleva más rato esperando:
+  // es a quien peor le queda el silencio, y a quien primero se le cierra la
+  // ventana de 24 horas de WhatsApp.
+  const esperando = useMemo(
+    () =>
+      filas
+        .filter((f) => sinResponder.has(f.id))
+        .sort((a, b) => Date.parse(sinResponder.get(a.id)!) - Date.parse(sinResponder.get(b.id)!)),
+    [filas, sinResponder],
+  );
+
   const visibles = useMemo(() => {
     let v = filas;
-    if (tab === "hoy") v = conteos.listaA;
+    // En "Hoy" no se repiten arriba y abajo: si está esperando respuesta, ya
+    // aparece en su propia sección.
+    if (tab === "hoy") v = conteos.listaA.filter((f) => !sinResponder.has(f.id));
     if (tab === "pipeline") v = filas.filter((f) => f.estado !== "contacto_inicial");
     if (filtro) v = v.filter((f) => f.clasificacion === filtro);
     return v;
-  }, [filas, tab, filtro, conteos.listaA]);
+  }, [filas, tab, filtro, conteos.listaA, sinResponder]);
 
   /* Mientras se resuelve la sesión, la pantalla no parpadea con datos vacíos. */
   if (sesion !== "dentro") {
@@ -196,16 +235,20 @@ export default function Pagina() {
             {cargando
               ? "Cargando leads…"
               : tab === "hoy"
-                ? conteos.a === 0
-                  ? "Hoy no tienes llamadas pendientes"
-                  : `Hoy debes hacer ${conteos.a} ${conteos.a === 1 ? "cosa" : "cosas"}`
+                ? conteos.a + esperando.length === 0
+                  ? "Hoy no tienes nada pendiente"
+                  : `Hoy debes hacer ${conteos.a + esperando.length} ${conteos.a + esperando.length === 1 ? "cosa" : "cosas"}`
                 : tab === "bandeja"
                   ? "Bandeja"
                   : "Pipeline"}
           </h1>
-          {tab === "hoy" && conteos.a > 0 && (
+          {tab === "hoy" && (conteos.a > 0 || esperando.length > 0) && (
             <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-muted)" }}>
-              Todos ya pasaron el filtro: tienen presupuesto, plazo, comuna y teléfono.
+              {esperando.length > 0 && conteos.a > 0
+                ? "Primero los que te escribieron; después los que pasaron el filtro completo."
+                : esperando.length > 0
+                  ? "Te escribieron y todavía no les respondes."
+                  : "Todos ya pasaron el filtro: tienen presupuesto, plazo, comuna y teléfono."}
             </p>
           )}
           {/* Si se llegó al tope, decirlo. Un lead que no se ve es un lead perdido. */}
@@ -219,13 +262,30 @@ export default function Pagina() {
 
         {error && <Aviso titulo="No se pudieron leer los leads" detalle={error} />}
 
+        {/* Te escribieron y siguen esperando. Va antes que todo lo demás: es lo
+            único de esta pantalla con un plazo corriendo en contra. */}
+        {!cargando && tab === "hoy" && esperando.length > 0 && (
+          <section className="mb-6">
+            <h2 className="mb-2 text-[11px] font-semibold tracking-[0.12em] uppercase" style={{ color: "var(--color-a)" }}>
+              Te escribieron · {esperando.length}
+            </h2>
+            <ul className="space-y-2.5">
+              {esperando.map((f) => (
+                <Ficha key={f.id} f={f} esperaDesde={sinResponder.get(f.id)} />
+              ))}
+            </ul>
+          </section>
+        )}
+
         {cargando ? (
           <div className="space-y-2.5">
             <div className="h-[74px] animate-pulse" style={{ background: "var(--color-surface)" }} />
             <div className="h-[74px] animate-pulse" style={{ background: "var(--color-surface)" }} />
           </div>
         ) : visibles.length === 0 ? (
-          <Vacia tab={tab} enNutricion={conteos.b} />
+          esperando.length > 0 && tab === "hoy" ? null : (
+            <Vacia tab={tab} enNutricion={conteos.b} />
+          )
         ) : (
           <ul className="space-y-2.5">
             {visibles.map((f) => (
@@ -294,10 +354,20 @@ function Marco({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Ficha({ f }: { f: Fila }) {
+/** "hace 3 h", "hace 12 min". Para decir cuánto lleva esperando una respuesta. */
+function hace(iso: string): string {
+  const min = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  return `hace ${Math.round(h / 24)} d`;
+}
+
+function Ficha({ f, esperaDesde }: { f: Fila; esperaDesde?: string }) {
   // La conversación se carga solo cuando se abre: son decenas de fichas en
   // pantalla y no tiene sentido pedirle a la base el historial de todas.
-  const [conversando, setConversando] = useState(false);
+  // Si está esperando respuesta, se abre sola: para eso está ahí.
+  const [conversando, setConversando] = useState(Boolean(esperaDesde));
   const tipo = f.tipo_proyecto ? config().tipos[f.tipo_proyecto]?.label : "";
   const sub = [tipo, f.superficie_m2 ? `${f.superficie_m2} m²` : "", f.rango_presupuesto]
     .filter(Boolean)
@@ -354,12 +424,19 @@ function Ficha({ f }: { f: Fila }) {
             </div>
           )}
         </div>
-        <span
-          className="tabular shrink-0 rounded-[2px] px-1.5 py-0.5 text-[12px] font-bold"
-          style={{ fontFamily: "var(--font-space-mono)", color }}
-        >
-          {f.clasificacion} {f.score}
-        </span>
+        <div className="shrink-0 text-right">
+          <span
+            className="tabular rounded-[2px] px-1.5 py-0.5 text-[12px] font-bold"
+            style={{ fontFamily: "var(--font-space-mono)", color }}
+          >
+            {f.clasificacion} {f.score}
+          </span>
+          {esperaDesde && (
+            <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-a)" }}>
+              {hace(esperaDesde)}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Máximo 3 acciones. Todo lo demás, detrás de Ver ficha. */}
