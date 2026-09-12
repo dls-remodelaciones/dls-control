@@ -105,9 +105,32 @@ export async function GET(req: NextRequest) {
         : { error: String((jn.error as Record<string, unknown>)?.message ?? "no se pudo listar") };
     }
 
+    // Opcional: `?subs=1&waba=<id>` dice qué aplicaciones están suscritas a esa
+    // cuenta. Es el eslabón que más silenciosamente falla: el webhook puede
+    // estar perfectamente configurado en la app, pero si la cuenta de WhatsApp
+    // no está suscrita A la app, Meta no entrega ni un solo mensaje y no avisa
+    // en ninguna parte.
+    let suscripciones: unknown = undefined;
+    if (req.nextUrl.searchParams.get("subs") === "1" && /^\d{5,25}$/.test(waba)) {
+      const rs = await fetch(`${GRAPH}/${waba}/subscribed_apps`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const js = (await rs.json()) as Record<string, unknown>;
+      suscripciones = rs.ok
+        ? (js.data as unknown[])?.map((a) => {
+            const x = (a as Record<string, unknown>).whatsapp_business_api_data as
+              | Record<string, unknown>
+              | undefined;
+            return { id: String(x?.id ?? ""), nombre: String(x?.name ?? "") };
+          })
+        : { error: String((js.error as Record<string, unknown>)?.message ?? "no se pudo consultar") };
+    }
+
     return NextResponse.json({
       ok: true,
       token_vivo: true,
+      ...(suscripciones ? { apps_suscritas: suscripciones } : {}),
       numero: {
         nombre: String(cuerpo.verified_name ?? ""),
         telefono: String(cuerpo.display_phone_number ?? ""),
