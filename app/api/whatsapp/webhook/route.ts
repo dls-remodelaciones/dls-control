@@ -47,16 +47,36 @@ export async function GET(req: NextRequest) {
    y se avisa en el log: prefiero recibir leads sin firmar a perderlos, pero
    esto no debería quedarse así. */
 function firmaValida(crudo: string, firma: string | null): boolean {
-  const secreto = process.env.WA_APP_SECRET;
+  // `.trim()`: un secreto pegado a mano en un panel llega con espacios o un
+  // salto de línea más veces de las que uno quisiera, y el fallo resultante es
+  // idéntico al de un secreto equivocado.
+  const secreto = (process.env.WA_APP_SECRET ?? "").trim();
   if (!secreto) {
     console.warn("WhatsApp: sin WA_APP_SECRET, no se verifica la firma de Meta");
     return true;
   }
-  if (!firma?.startsWith("sha256=")) return false;
+  if (!firma?.startsWith("sha256=")) {
+    console.error("WhatsApp: llegó un POST sin cabecera de firma de Meta");
+    return false;
+  }
   const esperada = "sha256=" + crypto.createHmac("sha256", secreto).update(crudo).digest("hex");
   const a = Buffer.from(firma);
   const b = Buffer.from(esperada);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  const calza = a.length === b.length && crypto.timingSafeEqual(a, b);
+
+  if (!calza) {
+    // Pistas para distinguir "secreto equivocado" de "cuerpo alterado", sin
+    // escribir el secreto en ningún log: los primeros caracteres de dos HMAC
+    // no permiten reconstruir la clave.
+    console.error(
+      "WhatsApp: firma no calza.",
+      `largo_secreto=${secreto.length}`,
+      `largo_cuerpo=${crudo.length}`,
+      `recibida=${firma.slice(0, 15)}…`,
+      `esperada=${esperada.slice(0, 15)}…`,
+    );
+  }
+  return calza;
 }
 
 /* ── Lo que se puede leer de un texto libre ────────────────────────────────
