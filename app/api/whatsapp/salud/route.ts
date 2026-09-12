@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
 
   // 3. La pregunta a Meta. Si el token está muerto, esto responde 190 u 200.
   try {
-    const url = `${GRAPH}/${numeroId}?fields=verified_name,display_phone_number,quality_rating,platform_type`;
+    const url = `${GRAPH}/${numeroId}?fields=verified_name,display_phone_number,quality_rating,platform_type,name_status,new_name_status`;
     const r = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
@@ -136,6 +136,11 @@ export async function GET(req: NextRequest) {
         telefono: String(cuerpo.display_phone_number ?? ""),
         calidad: String(cuerpo.quality_rating ?? ""),
         plataforma: String(cuerpo.platform_type ?? ""),
+        // Estado del nombre visible: APPROVED, PENDING_REVIEW, DECLINED, EXPIRED.
+        // Un cambio de nombre pasa por revisión de Meta y el panel no lo dice en
+        // ninguna parte; esto es la única forma de saber en qué quedó.
+        estado_nombre: String(cuerpo.name_status ?? ""),
+        estado_nombre_nuevo: String(cuerpo.new_name_status ?? ""),
       },
       ...(numeros ? { numeros_de_la_cuenta: numeros } : {}),
       configuracion,
