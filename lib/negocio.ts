@@ -79,18 +79,31 @@ export const CONFIG_POR_DEFECTO: ConfigNegocio = {
     "cerrillos","san joaquin","la cisterna","puente alto",
   ],
   tipos: {
+    // Los tramos salen del propio uf_m2 × la superficie TÍPICA de cada tipo (no
+    // del rango coherente completo, que es ancho a propósito para aceptar casos
+    // raros). Recalculados el 2026-09-12 con UF ≈ $40.885: los anteriores venían
+    // de otra época y ya no describían nada. Una cocina de 16 m² cuesta ~$7,8
+    // millones y el tramo más barato que veía el cliente partía en $15 millones:
+    // su proyecto no existía en la lista, y el puntaje lo castigaba por eso.
     bano: { label: "Baño", uf_m2: 14, superficie: { min: 2, max: 30 },
-      rangos: ["Menos de $5.000.000", "$5.000.000 - $7.000.000", "Más de $7.000.000"] },
+      // típico 4-9 m² → $2,3M - $5,2M
+      rangos: ["Menos de $2.500.000", "$2.500.000 - $5.500.000", "Más de $5.500.000"] },
     cocina: { label: "Cocina", uf_m2: 12, superficie: { min: 4, max: 60 },
-      rangos: ["$15.000.000 - $25.000.000", "$25.000.000 - $30.000.000", "Más de $30.000.000"] },
+      // típico 10-20 m² → $4,9M - $9,8M
+      rangos: ["Menos de $5.000.000", "$5.000.000 - $10.000.000", "Más de $10.000.000"] },
     quincho: { label: "Quincho", uf_m2: 28, superficie: { min: 10, max: 150 },
-      rangos: ["$25.000.000 - $35.000.000", "$35.000.000 - $45.000.000", "Más de $45.000.000"] },
+      // típico 25-50 m² → $28,6M - $57,2M
+      rangos: ["Menos de $30.000.000", "$30.000.000 - $60.000.000", "Más de $60.000.000"] },
     estacionamiento: { label: "Estacionamiento", uf_m2: 4, superficie: { min: 10, max: 100 },
-      rangos: ["$10.000.000 - $13.000.000", "$13.000.000 - $16.000.000", "Más de $16.000.000"] },
+      // típico 20-40 m² → $3,3M - $6,5M
+      rangos: ["Menos de $3.000.000", "$3.000.000 - $7.000.000", "Más de $7.000.000"] },
     walking_closet: { label: "Walking Closet", uf_m2: 8, superficie: { min: 3, max: 25 },
-      rangos: ["Menos de $6.000.000", "$6.000.000 - $10.000.000", "Más de $10.000.000"] },
+      // típico 6-12 m² → $2,0M - $3,9M
+      rangos: ["Menos de $2.000.000", "$2.000.000 - $4.000.000", "Más de $4.000.000"] },
     casa_completa: { label: "Departamento / Casa completa", uf_m2: 19, superficie: { min: 30, max: 600 },
-      rangos: ["≈1.000 UF", "≈2.000 UF", "3.000 UF o más"] },
+      // típico 80-200 m² → 1.520 - 3.800 UF. Se mantiene en UF: a esta escala un
+      // monto en pesos envejece en meses y la UF no.
+      rangos: ["Menos de 1.500 UF", "1.500 - 4.000 UF", "Más de 4.000 UF"] },
   },
   pesos: { presupuesto: 30, plazo: 20, comuna: 15, propiedad: 10, superficie: 10, completitud: 10, interaccion: 5 },
   puntos: {
@@ -173,7 +186,9 @@ export function normalizarPropiedad(v: unknown): Propiedad | "" {
   if (!s) return "";
   if (/comprar|comprando/.test(s)) return "por_comprar";
   if (/arrien|arriendo|alquil|rento/.test(s)) return "arriendo";
-  if (/propia|propio|mia|mio|dueno/.test(s)) return "propia";
+  // "propietario" y "propietaria" faltaban, y son justo como habla la gente
+  // cuando se lo preguntas en un formulario.
+  if (/propia|propio|propietari|mia|mio|dueno|duena/.test(s)) return "propia";
   return "";
 }
 
@@ -185,12 +200,32 @@ export function zonaComuna(comuna: unknown): "principal" | "secundaria" | "fuera
   return "fuera_radio";
 }
 
+/**
+ * Tramos que estuvieron vigentes hasta el 2026-09-12.
+ *
+ * El tier se resuelve comparando el TEXTO que eligió la persona contra la lista
+ * de tramos. Al recalcularlos, todo lead guardado antes quedaba sin coincidencia
+ * y su presupuesto pasaba a "no_se" — que vale 0 de los 30 puntos que pesa el
+ * presupuesto. Un lead A podía caer a C sin que nadie hubiera tocado su ficha,
+ * solo por haber llegado antes del cambio. Por eso los textos viejos se siguen
+ * entendiendo, en el mismo orden bajo/en_rango/sobre.
+ */
+const RANGOS_ANTERIORES: Record<string, string[]> = {
+  bano: ["Menos de $5.000.000", "$5.000.000 - $7.000.000", "Más de $7.000.000"],
+  cocina: ["$15.000.000 - $25.000.000", "$25.000.000 - $30.000.000", "Más de $30.000.000"],
+  quincho: ["$25.000.000 - $35.000.000", "$35.000.000 - $45.000.000", "Más de $45.000.000"],
+  estacionamiento: ["$10.000.000 - $13.000.000", "$13.000.000 - $16.000.000", "Más de $16.000.000"],
+  walking_closet: ["Menos de $6.000.000", "$6.000.000 - $10.000.000", "Más de $10.000.000"],
+  casa_completa: ["≈1.000 UF", "≈2.000 UF", "3.000 UF o más"],
+};
+
 export function tierPresupuesto(tipo: TipoProyecto | "", etiqueta: unknown): "sobre"|"en_rango"|"bajo"|"no_se" {
   const s = slug(etiqueta);
   if (!s || /no se|no lo se|por definir|sin definir|no tengo/.test(s)) return "no_se";
   const t = tipo ? CFG.tipos[tipo] : null;
   if (!t) return "no_se";
-  const i = t.rangos.findIndex((r) => slug(r) === s);
+  let i = t.rangos.findIndex((r) => slug(r) === s);
+  if (i < 0 && tipo) i = (RANGOS_ANTERIORES[tipo] ?? []).findIndex((r) => slug(r) === s);
   return i === 0 ? "bajo" : i === 1 ? "en_rango" : i === 2 ? "sobre" : "no_se";
 }
 
@@ -211,15 +246,24 @@ export function calificar(lead: Lead): Calificacion {
     bajo: "bajo el rango objetivo", no_se: "no declarado",
   }[tier]);
 
-  add("Plazo", lead.plazo ? puntos.plazo[lead.plazo] : puntos.plazo.explorando, pesos.plazo,
-    lead.plazo ? lead.plazo.replace(/_/g, " ") : "sin dato → se asume explorando");
+  // Se normaliza acá y no se confía en que venga limpio. Antes esto indexaba
+  // `puntos.plazo[lead.plazo]` con el texto crudo: un "1 a 3 meses" en vez de
+  // "1-3_meses" devolvía undefined, y `total += undefined` convertía el puntaje
+  // COMPLETO en NaN — no restaba unos puntos, borraba los 100. El lead caía a D
+  // con todas sus señales buenas intactas. Hoy no pasa porque el alta normaliza
+  // antes de guardar, pero basta un dato editado a mano o un canal nuevo para
+  // que vuelva. El `?? 0` es la red: un valor desconocido vale cero, no rompe.
+  const plazo = normalizarPlazo(lead.plazo);
+  add("Plazo", plazo ? puntos.plazo[plazo] ?? 0 : puntos.plazo.explorando, pesos.plazo,
+    plazo ? plazo.replace(/_/g, " ") : "sin dato → se asume explorando");
 
   const z = zonaComuna(lead.comuna);
   add("Comuna", z === "sin_dato" ? 0 : puntos.comuna[z], pesos.comuna,
     z === "sin_dato" ? "sin dato" : z === "fuera_radio" ? "FUERA DE RADIO" : `zona ${z}`);
 
-  add("Propiedad", lead.propiedad ? puntos.propiedad[lead.propiedad] : 0, pesos.propiedad,
-    lead.propiedad ? lead.propiedad.replace(/_/g, " ") : "sin dato");
+  const propiedad = normalizarPropiedad(lead.propiedad);
+  add("Propiedad", propiedad ? puntos.propiedad[propiedad] ?? 0 : 0, pesos.propiedad,
+    propiedad ? propiedad.replace(/_/g, " ") : lead.propiedad ? `"${lead.propiedad}" no reconocido` : "sin dato");
 
   const t = lead.tipo_proyecto ? CFG.tipos[lead.tipo_proyecto] : null;
   const coherente = !!(t && lead.superficie_m2 > 0
