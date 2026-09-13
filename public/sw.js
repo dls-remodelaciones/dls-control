@@ -22,17 +22,22 @@ self.addEventListener("push", (event) => {
   }
 
   const titulo = datos.titulo || "DLS Control";
+  const cuerpo = datos.cuerpo || "";
+  const data = { url: datos.url || "/" };
+  // Si showNotification falla, iOS muestra un aviso genérico que dice solo
+  // "Notificación", sin decir quién escribió. Por eso hay un segundo intento con
+  // lo mínimo: título y texto, sin opciones que un navegador pueda rechazar.
   event.waitUntil(
-    self.registration.showNotification(titulo, {
-      body: datos.cuerpo || "",
-      icon: "/icon",
-      badge: "/icon",
-      // Mismo tag para el mismo lead: si escribe tres veces seguidas, se
-      // reemplaza el aviso en vez de apilar tres.
-      tag: datos.tag || undefined,
-      renotify: Boolean(datos.tag),
-      data: { url: datos.url || "/" },
-    }),
+    self.registration
+      .showNotification(titulo, {
+        body: cuerpo,
+        icon: "/icon",
+        // Mismo tag para el mismo lead: si escribe tres veces seguidas, se
+        // reemplaza el aviso en vez de apilar tres.
+        tag: datos.tag || undefined,
+        data,
+      })
+      .catch(() => self.registration.showNotification(titulo, { body: cuerpo, data })),
   );
 });
 

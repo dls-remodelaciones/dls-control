@@ -104,12 +104,20 @@ export default function Avisos() {
     borderColor: "var(--color-line)",
   };
 
+  // Activo: una línea chica con la opción de probar. Sin ella, la única forma de
+  // comprobar que los avisos siguen llegando sería esperar un lead real.
   if (estado === "activo") {
-    return aviso ? (
-      <div className="border-b px-4 py-2 text-[12px]" style={{ ...franja, color: "var(--color-muted)" }}>
-        {aviso}
+    return (
+      <div
+        className="flex items-center justify-between gap-3 border-b px-4 py-2 text-[12px]"
+        style={{ ...franja, color: "var(--color-muted)" }}
+      >
+        <span>{aviso ?? "Avisos activos en este dispositivo."}</span>
+        <button onClick={() => void probar()} className="shrink-0 cursor-pointer underline">
+          Probar aviso
+        </button>
       </div>
-    ) : null;
+    );
   }
 
   return (
