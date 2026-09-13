@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { registrarLead, type EntradaLead } from "@/lib/registrar-lead";
+import { avisar } from "@/lib/avisos";
+import { config, type TipoProyecto } from "@/lib/negocio";
 
 /**
  * Entrada de leads en tiempo real. La usan el cotizador, el chatbot y el
@@ -78,6 +80,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { ok: false, error: r.error, detalle: r.detalle },
       { status: r.status, headers },
+    );
+  }
+  // Aviso al celular solo cuando el lead PASA a ser contactable: el chatbot y el
+  // cotizador mandan parciales en cada paso, y avisar por cada uno seria ruido.
+  // Va en after(): la respuesta al sitio sale primero y un aviso que falle no
+  // puede frenar ni romper el registro del lead.
+  if (r.recien_contactable) {
+    const tipo = config().tipos[r.tipo_proyecto as TipoProyecto]?.label ?? "";
+    const { id, clasificacion, score, nombre, comuna } = r;
+    after(() =>
+      avisar({
+        titulo: `Lead nuevo · ${clasificacion} ${score}`,
+        cuerpo: [nombre, tipo, comuna].filter(Boolean).join(" · ") || "Sin detalle",
+        url: "/",
+        tag: `lead-${id}`,
+      }).then(() => undefined),
     );
   }
   return NextResponse.json(r, { headers });

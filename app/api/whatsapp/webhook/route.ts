@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import crypto from "crypto";
 import { registrarLead } from "@/lib/registrar-lead";
+import { avisar } from "@/lib/avisos";
 import { normalizarTipo, normalizarM2, config, type TipoProyecto } from "@/lib/negocio";
 
 /**
@@ -159,6 +160,18 @@ export async function POST(req: NextRequest) {
 
         if (r.ok) {
           procesados.push({ id: r.id, score: r.score, clasificacion: r.clasificacion });
+          // Cada WhatsApp avisa: es una obligación con plazo (24 horas de ventana).
+          // Mismo tag por lead, así tres mensajes seguidos no apilan tres avisos.
+          const quien = perfil || `+${de}`;
+          const leadId = r.id;
+          after(() =>
+            avisar({
+              titulo: `WhatsApp de ${quien}`,
+              cuerpo: contenido,
+              url: "/",
+              tag: `wa-${leadId}`,
+            }).then(() => undefined),
+          );
         } else {
           console.error("WhatsApp: no se pudo registrar", r.error, r.detalle);
         }

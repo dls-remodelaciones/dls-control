@@ -68,6 +68,11 @@ export type Resultado =
       accion: string;
       etiqueta: string;
       contactable: boolean;
+      /** Recién ahora hay forma de contactarlo: es nuevo con contacto, o era SIN CONTACTO y dejó teléfono o correo. */
+      recien_contactable: boolean;
+      nombre: string;
+      tipo_proyecto: string;
+      comuna: string;
     };
 
 const txt = (v: unknown, max = 300) => String(v ?? "").trim().slice(0, max);
@@ -199,6 +204,9 @@ export async function registrarLead(body: EntradaLead): Promise<Resultado> {
   // La etiqueta se decide por lo que se sabe DESPUÉS de fusionar, y nunca pisa
   // una que Daniel haya movido a mano (SEGUIMIENTO, VISITA AGENDADA...).
   const contactableAhora = Boolean(fusion.telefono || fusion.email);
+  // Para avisar sin ruido: interesa el momento en que un lead PASA a ser
+  // contactable, no cada vez que el mismo formulario manda un parcial más.
+  const eraContactable = Boolean(previo?.telefono || previo?.email);
   const etiquetaPrevia = txt(previo?.etiqueta, 40);
   const etiquetaAutomatica =
     etiquetaPrevia === "" || etiquetaPrevia === "NUEVO" || etiquetaPrevia === "SIN CONTACTO";
@@ -269,5 +277,9 @@ export async function registrarLead(body: EntradaLead): Promise<Resultado> {
     accion: cal.accion,
     etiqueta: etiquetaAutomatica || creado ? etiqueta : etiquetaPrevia,
     contactable: contactableAhora,
+    recien_contactable: contactableAhora && !eraContactable,
+    nombre: String(fusion.nombre ?? ""),
+    tipo_proyecto: String(fusion.tipo_proyecto ?? ""),
+    comuna: String(fusion.comuna ?? ""),
   };
 }

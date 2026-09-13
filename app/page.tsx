@@ -6,6 +6,7 @@ import { telHref, waHref, config, type Clase, type Lead, type Senal } from "@/li
 import Conversacion from "./conversacion";
 import FichaDetalle from "./ficha";
 import NuevoLead from "./nuevo";
+import Avisos from "./avisos";
 
 type Proyecto = {
   tipo: string;
@@ -194,6 +195,8 @@ export default function Pagina() {
 
   return (
     <Marco alAnotar={() => setAnotando((v) => !v)}>
+      <Avisos />
+
       {anotando && (
         <NuevoLead
           alCerrar={() => setAnotando(false)}
