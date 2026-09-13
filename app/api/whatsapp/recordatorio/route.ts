@@ -1,0 +1,60 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { avisar } from "@/lib/avisos";
+import { quienLlama } from "@/lib/cron";
+import { porVencer, type MensajeWA } from "@/lib/recordatorio";
+import { VENTANA_HORAS } from "@/lib/whatsapp";
+
+/**
+ * Cada hora (cron en `vercel.json`): avisa al celular por cada WhatsApp sin
+ * responder al que le quedan menos de 3 horas de ventana. La regla vive en
+ * `lib/recordatorio.ts`. Acceso: el cron o Daniel con sesión (`lib/cron.ts`);
+ * Daniel mirando no dispara avisos.
+ */
+export async function GET(req: NextRequest) {
+  const { cron, sesion } = await quienLlama(req);
+  if (!cron && !sesion) return NextResponse.json({ ok: false, error: "sin_sesion" }, { status: 401 });
+
+  const db = supabaseAdmin();
+  if (!db) return NextResponse.json({ ok: false, error: "sin_base_de_datos" }, { status: 500 });
+
+  // Basta con los mensajes de la ventana: una respuesta posterior al último
+  // mensaje de la persona también cae dentro de estas 24 horas.
+  const desde = new Date(Date.now() - VENTANA_HORAS * 3_600_000).toISOString();
+  const { data, error } = await db
+    .from("mensajes")
+    .select("lead_id, direccion, cuerpo, creado")
+    .eq("canal", "whatsapp")
+    .gte("creado", desde)
+    .limit(2000);
+  if (error) return NextResponse.json({ ok: false, error: "consulta", detalle: error.message }, { status: 500 });
+
+  const lista = porVencer((data ?? []) as MensajeWA[]);
+  if (!lista.length) return NextResponse.json({ ok: true, por_vencer: 0 });
+
+  const { data: leads } = await db
+    .from("leads")
+    .select("id, nombre, telefono")
+    .in("id", lista.map((l) => l.lead_id));
+  const nombreDe = new Map((leads ?? []).map((l) => [l.id as string, (l.nombre as string) || `+${l.telefono}`]));
+
+  let enviados = 0;
+  if (cron) {
+    for (const l of lista) {
+      const r = await avisar({
+        titulo: `Quedan ${Math.floor(l.horas_restantes)} h para responderle a ${nombreDe.get(l.lead_id) ?? "un cliente"}`,
+        cuerpo: `Escribió: "${l.cuerpo.slice(0, 120)}". Después solo podrás mandarle plantillas.`,
+        url: "/",
+        // Mismo tag que el aviso del mensaje: reemplaza al original en vez de sumar otro.
+        tag: `wa-${l.lead_id}`,
+      });
+      enviados += r.enviados;
+    }
+  }
+  return NextResponse.json({
+    ok: true,
+    por_vencer: lista.length,
+    leads: lista.map((l) => ({ nombre: nombreDe.get(l.lead_id) ?? "", horas_restantes: l.horas_restantes })),
+    avisos_enviados: enviados,
+  });
+}

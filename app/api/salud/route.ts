@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revisarSalud } from "@/lib/salud";
 import { avisar } from "@/lib/avisos";
-import { usuarioDeLaPeticion } from "@/lib/sesion";
+import { quienLlama } from "@/lib/cron";
 
 /**
  * Revisión diaria del circuito de leads (cron de Vercel, ver `vercel.json`).
@@ -9,27 +9,12 @@ import { usuarioDeLaPeticion } from "@/lib/sesion";
  * Si todo está bien, no molesta: no manda ningún aviso. Si algo falló, avisa al
  * celular con lo primero que hay que arreglar.
  *
- * Acceso:
- *   - Vercel Cron manda `Authorization: Bearer <CRON_SECRET>` cuando esa variable
- *     existe en el proyecto; en ese caso se exige.
- *   - Daniel con su sesión del panel puede abrirla para ver el detalle.
- *   - Sin CRON_SECRET se reconoce al cron por su user-agent. Eso se puede imitar,
- *     y es aceptable: la ruta no escribe nada ni devuelve valores secretos, y lo
- *     peor que provoca un tercero es repetir un aviso de falla que ya existe
- *     (mismo tag, se reemplaza). Si algún día molesta, se agrega CRON_SECRET.
+ * Acceso: el cron o Daniel con sesión (ver `lib/cron.ts`).
  */
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  const secreto = (process.env.CRON_SECRET ?? "").trim();
-  const auth = req.headers.get("authorization") ?? "";
-  const esCron = !!secreto && auth === `Bearer ${secreto}`;
-
-  const conSesion = !esCron && (await usuarioDeLaPeticion(req)).ok;
-  if (secreto && !esCron && !conSesion) {
-    return NextResponse.json({ ok: false, error: "sin_sesion" }, { status: 401 });
-  }
-  const pareceCron = esCron || (req.headers.get("user-agent") ?? "").startsWith("vercel-cron");
+  const { cron: pareceCron, sesion: conSesion } = await quienLlama(req);
   if (!pareceCron && !conSesion) {
     return NextResponse.json({ ok: false, error: "sin_sesion" }, { status: 401 });
   }
