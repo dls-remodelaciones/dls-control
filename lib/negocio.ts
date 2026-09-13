@@ -185,7 +185,9 @@ export function normalizarPropiedad(v: unknown): Propiedad | "" {
   const s = slug(v);
   if (!s) return "";
   if (/comprar|comprando/.test(s)) return "por_comprar";
-  if (/arrien|arriendo|alquil|rento/.test(s)) return "arriendo";
+  // "arrend" cubre arrendada, arrendado y arrendamos, que es como lo dice la
+  // gente; el patrón anterior solo entendía "arriendo" y "arriendan".
+  if (/arrien|arrend|alquil|rento/.test(s)) return "arriendo";
   // "propietario" y "propietaria" faltaban, y son justo como habla la gente
   // cuando se lo preguntas en un formulario.
   if (/propia|propio|propietari|mia|mio|dueno|duena/.test(s)) return "propia";
@@ -297,7 +299,10 @@ export function calificar(lead: Lead): Calificacion {
 
   // Regla dura: nunca a "Llamar hoy" sin teléfono válido y tipo definido.
   const faltan: string[] = [];
-  if (!lead.telefono) faltan.push("teléfono válido");
+  // Se NORMALIZA, no basta con que el campo tenga algo: la regla dice
+  // "teléfono válido" y un "123" cumplia con estar lleno. Ese lead entraba a
+  // "Hoy debes hacer" y Daniel llamaba a un número que no existe.
+  if (!normalizarTelefono(lead.telefono)) faltan.push("teléfono válido");
   if (!lead.tipo_proyecto) faltan.push("tipo de proyecto");
   const apto = clasificacion === "A" && faltan.length === 0;
   if (clasificacion === "A" && faltan.length) {
