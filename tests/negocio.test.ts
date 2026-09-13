@@ -32,7 +32,11 @@ import {
  * Se corre con:  npm test
  */
 
-const base = (extra: Partial<Lead> = {}): Lead =>
+// El parámetro va laxo a propósito: media prueba consiste en meter valores que
+// el tipo prohíbe pero que la realidad manda igual (un plazo escrito a mano, una
+// propiedad que nadie normalizó). Si esto fuera Partial<Lead>, no se podría
+// probar justo lo que rompió el puntaje.
+const base = (extra: Record<string, unknown> = {}): Lead =>
   ({
     canal: "web",
     nombre: "Prueba",
@@ -53,22 +57,22 @@ const base = (extra: Partial<Lead> = {}): Lead =>
 
 describe("el puntaje nunca se rompe", () => {
   // La regresión que motivó todo esto.
-  const entradasRaras: [string, Partial<Lead>][] = [
+  const entradasRaras: [string, Record<string, unknown>][] = [
     ["plazo en texto crudo", { plazo: "1 a 3 meses" }],
     ["plazo inventado", { plazo: "cuando se pueda" }],
     ["plazo vacío", { plazo: "" }],
     ["propiedad en texto crudo", { propiedad: "propietario" }],
     ["propiedad inventada", { propiedad: "herencia" }],
     ["propiedad vacía", { propiedad: "" }],
-    ["tipo inexistente", { tipo_proyecto: "piscina" as TipoProyecto }],
-    ["tipo vacío", { tipo_proyecto: "" as TipoProyecto }],
+    ["tipo inexistente", { tipo_proyecto: "piscina" }],
+    ["tipo vacío", { tipo_proyecto: "" }],
     ["superficie cero", { superficie_m2: 0 }],
     ["superficie absurda", { superficie_m2: 99999 }],
     ["presupuesto de otro tipo", { rango_presupuesto: "Menos de 1.500 UF" }],
     ["presupuesto inventado", { rango_presupuesto: "como mil pesos" }],
     ["comuna inexistente", { comuna: "Ciudad Gótica" }],
     ["todo vacío salvo el canal", {
-      nombre: "", telefono: "", email: "", tipo_proyecto: "" as TipoProyecto,
+      nombre: "", telefono: "", email: "", tipo_proyecto: "",
       comuna: "", superficie_m2: 0, rango_presupuesto: "", plazo: "", propiedad: "",
     }],
   ];
