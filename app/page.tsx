@@ -5,6 +5,7 @@ import { supabase, configurado } from "@/lib/supabase";
 import { telHref, waHref, config, type Clase, type Lead } from "@/lib/negocio";
 import Conversacion from "./conversacion";
 import FichaDetalle from "./ficha";
+import NuevoLead from "./nuevo";
 
 type Proyecto = {
   tipo: string;
@@ -54,6 +55,7 @@ export default function Pagina() {
   const [sesion, setSesion] = useState<"revisando" | "dentro" | "fuera">("revisando");
   /** lead_id → fecha del mensaje entrante que todavía espera respuesta. */
   const [sinResponder, setSinResponder] = useState<Map<string, string>>(new Map());
+  const [anotando, setAnotando] = useState(false);
 
   // La base no le muestra nada a quien no tiene sesión (Row Level Security),
   // así que sin ingresar no tiene sentido ni intentar leer.
@@ -190,7 +192,14 @@ export default function Pagina() {
   }
 
   return (
-    <Marco>
+    <Marco alAnotar={() => setAnotando((v) => !v)}>
+      {anotando && (
+        <NuevoLead
+          alCerrar={() => setAnotando(false)}
+          alCrear={() => void cargar()}
+        />
+      )}
+
       {/* Tres cifras — cada una es un filtro, no un adorno */}
       <div className="grid grid-cols-3 border-b" style={{ borderColor: "var(--color-line)" }}>
         {(
@@ -334,20 +343,31 @@ export default function Pagina() {
 
 /* ── Piezas ─────────────────────────────────────────────────────────────── */
 
-function Marco({ children }: { children: React.ReactNode }) {
+function Marco({ children, alAnotar }: { children: React.ReactNode; alAnotar?: () => void }) {
   return (
     <div className="mx-auto max-w-[560px]">
       <header
         className="sticky top-0 z-20 border-b"
         style={{ background: "var(--color-bg)", borderColor: "var(--color-line)" }}
       >
-        <div className="flex h-14 items-center px-4">
+        <div className="flex h-14 items-center justify-between px-4">
           <span className="text-base font-semibold tracking-[-0.02em]">
             DLS{" "}
             <span className="font-light" style={{ color: "var(--color-muted)" }}>
               Control
             </span>
           </span>
+          {/* Anotar a mano a quien llego por telefono, Instagram o recomendado:
+              antes esa persona no entraba a ninguna parte. */}
+          {alAnotar && (
+            <button
+              onClick={alAnotar}
+              className="cursor-pointer border px-2.5 py-1.5 text-[12.5px] font-medium"
+              style={{ borderColor: "var(--color-line)" }}
+            >
+              + Anotar lead
+            </button>
+          )}
         </div>
       </header>
       {children}
