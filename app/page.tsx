@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, configurado } from "@/lib/supabase";
-import { telHref, waHref, config, type Clase, type Lead } from "@/lib/negocio";
+import { telHref, waHref, config, type Clase, type Lead, type Senal } from "@/lib/negocio";
 import Conversacion from "./conversacion";
 import FichaDetalle from "./ficha";
 import NuevoLead from "./nuevo";
@@ -24,6 +24,7 @@ type Fila = Lead & {
   estado: string;
   creado: string;
   proyectos?: Proyecto[];
+  desglose?: Senal[];
 };
 
 type Tab = "hoy" | "bandeja" | "pipeline";

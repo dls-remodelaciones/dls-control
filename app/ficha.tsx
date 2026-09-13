@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { config, type TipoProyecto } from "@/lib/negocio";
+import { config, type Senal, type TipoProyecto } from "@/lib/negocio";
 
 /**
  * La ficha del lead, editable.
@@ -58,6 +58,7 @@ export type DatosFicha = {
   proxima_accion?: string | null;
   score?: number;
   clasificacion?: string;
+  desglose?: Senal[];
 };
 
 export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () => void }) {
@@ -78,6 +79,8 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{ score: number; clasificacion: string } | null>(null);
+  const [desglose, setDesglose] = useState<Senal[]>(Array.isArray(f.desglose) ? f.desglose : []);
+  const [viendoPorque, setViendoPorque] = useState(false);
 
   const tipos = Object.entries(config().tipos) as [TipoProyecto, { label: string; rangos: string[] }][];
   // Los tramos dependen del tipo: ofrecer los de otro proyecto sería ofrecer
@@ -105,6 +108,7 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
       return;
     }
     setResultado({ score: j.score, clasificacion: j.clasificacion });
+    if (Array.isArray(j.desglose)) setDesglose(j.desglose);
     alGuardar();
   }
 
@@ -230,6 +234,51 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
           {aviso}
         </p>
       )}
+
+      {/* Por qué puntúa lo que puntúa. El desglose ya se guardaba en la base y
+          no se mostraba en ninguna parte: con él a la vista se entiende de dónde
+          salió la clase y, sobre todo, qué falta para subirla. */}
+      {desglose.length > 0 && (
+        <div className="mt-3">
+          <button
+            onClick={() => setViendoPorque((v) => !v)}
+            className="cursor-pointer text-[12px] underline underline-offset-2"
+            style={{ color: "var(--color-muted)" }}
+          >
+            {viendoPorque ? "Ocultar el detalle del puntaje" : "¿Por qué tiene este puntaje?"}
+          </button>
+
+          {viendoPorque && (
+            <ul className="mt-2 border" style={{ borderColor: "var(--color-linesoft)" }}>
+              {desglose.map((s, i) => {
+                const falta = s.max - s.puntos;
+                return (
+                  <li
+                    key={i}
+                    className="flex items-baseline justify-between gap-3 border-b px-2.5 py-1.5 text-[12px] last:border-b-0"
+                    style={{ borderColor: "var(--color-linesoft)" }}
+                  >
+                    <span>
+                      <b className="font-semibold">{s.senal}</b>
+                      <span style={{ color: "var(--color-muted)" }}> · {s.detalle}</span>
+                    </span>
+                    <span
+                      className="tabular shrink-0"
+                      style={{
+                        fontFamily: "var(--font-space-mono)",
+                        color: falta > 0 ? "var(--color-muted)" : "var(--color-a)",
+                      }}
+                    >
+                      {s.puntos}/{s.max}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
 
       <div className="mt-3 flex items-center justify-between">
         <span className="text-[11.5px]" style={{ color: "var(--color-muted)" }}>
