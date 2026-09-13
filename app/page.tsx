@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, configurado } from "@/lib/supabase";
 import { telHref, waHref, config, type Clase, type Lead } from "@/lib/negocio";
 import Conversacion from "./conversacion";
+import FichaDetalle from "./ficha";
 
 type Proyecto = {
   tipo: string;
@@ -271,7 +272,7 @@ export default function Pagina() {
             </h2>
             <ul className="space-y-2.5">
               {esperando.map((f) => (
-                <Ficha key={f.id} f={f} esperaDesde={sinResponder.get(f.id)} />
+                <Ficha key={f.id} f={f} esperaDesde={sinResponder.get(f.id)} recargar={cargar} />
               ))}
             </ul>
           </section>
@@ -289,7 +290,7 @@ export default function Pagina() {
         ) : (
           <ul className="space-y-2.5">
             {visibles.map((f) => (
-              <Ficha key={f.id} f={f} />
+              <Ficha key={f.id} f={f} recargar={cargar} />
             ))}
           </ul>
         )}
@@ -363,11 +364,12 @@ function hace(iso: string): string {
   return `hace ${Math.round(h / 24)} d`;
 }
 
-function Ficha({ f, esperaDesde }: { f: Fila; esperaDesde?: string }) {
+function Ficha({ f, esperaDesde, recargar }: { f: Fila; esperaDesde?: string; recargar: () => void }) {
   // La conversación se carga solo cuando se abre: son decenas de fichas en
   // pantalla y no tiene sentido pedirle a la base el historial de todas.
   // Si está esperando respuesta, se abre sola: para eso está ahí.
   const [conversando, setConversando] = useState(Boolean(esperaDesde));
+  const [viendoFicha, setViendoFicha] = useState(false);
   const tipo = f.tipo_proyecto ? config().tipos[f.tipo_proyecto]?.label : "";
   const sub = [tipo, f.superficie_m2 ? `${f.superficie_m2} m²` : "", f.rango_presupuesto]
     .filter(Boolean)
@@ -469,14 +471,20 @@ function Ficha({ f, esperaDesde }: { f: Fila; esperaDesde?: string }) {
             {conversando ? "Cerrar chat" : "WhatsApp"}
           </button>
         )}
-        <button className="flex-1 cursor-pointer py-2.5 text-center text-[12.5px] font-medium">
-          Ver ficha
+        <button
+          onClick={() => setViendoFicha((v) => !v)}
+          className="flex-1 cursor-pointer py-2.5 text-center text-[12.5px] font-medium"
+          style={{ color: viendoFicha ? "var(--color-a)" : undefined }}
+        >
+          {viendoFicha ? "Cerrar ficha" : "Ver ficha"}
         </button>
       </div>
 
       {conversando && f.telefono && (
         <Conversacion leadId={f.id} telefono={f.telefono} alternativa={waHref(f)} />
       )}
+
+      {viendoFicha && <FichaDetalle f={f} alGuardar={recargar} />}
     </li>
   );
 }
