@@ -150,6 +150,8 @@ export default function Conversacion({
 
   const { ventana, mensajes, puede_escribir, configurado } = estado;
   const aprobadas = Array.isArray(estado.plantillas) ? estado.plantillas : [];
+  const errorPlantillas =
+    estado.plantillas && !Array.isArray(estado.plantillas) ? estado.plantillas.error : "";
   const plantillaElegida = aprobadas.find((p) => p.nombre === elegida);
   const vistaPrevia = plantillaElegida
     ? plantillaElegida.cuerpo.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => valores[Number(n) - 1] || `…`)
@@ -331,8 +333,13 @@ export default function Conversacion({
                   )}
                 </div>
               ) : (
-                <p className="mt-2" style={{ color: "var(--color-muted)" }}>
-                  Todavía no tienes plantillas aprobadas por Meta.
+                // Se distingue "no hay plantillas" de "no se pudieron consultar".
+                // Decir lo primero cuando pasó lo segundo manda a buscar el
+                // problema al lado equivocado.
+                <p className="mt-2" style={{ color: errorPlantillas ? "var(--color-c)" : "var(--color-muted)" }}>
+                  {errorPlantillas
+                    ? `No se pudieron consultar las plantillas: ${errorPlantillas}`
+                    : "Todavía no tienes plantillas aprobadas por Meta."}
                 </p>
               )}
             </>
