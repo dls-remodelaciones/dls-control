@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { supabase, configurado } from "@/lib/supabase";
 
 /**
- * Ingreso por magic link. Sin contraseña que recordar ni que se pueda filtrar:
- * Daniel pone su correo, recibe un enlace y con eso queda dentro.
+ * Ingreso por correo, sin contraseña que recordar ni que se pueda filtrar:
+ * Daniel pone su correo y recibe un enlace y un código; cualquiera de los dos
+ * lo deja dentro.
  *
  * Quién puede entrar no lo decide esta pantalla: lo decide Supabase, que tiene
  * los registros nuevos deshabilitados. Si un correo no está dado de alta, pide
@@ -44,6 +45,8 @@ export default function Login() {
   const [detalle, setDetalle] = useState("");
   /** Segundos que faltan para poder pedir otro enlace. 0 = se puede. */
   const [espera, setEspera] = useState(0);
+  const [codigo, setCodigo] = useState("");
+  const [verificando, setVerificando] = useState(false);
 
   // Cuenta regresiva visible. Es la mitad del arreglo: sin ella el botón queda
   // disponible, se aprieta de nuevo por impaciencia y Supabase bloquea el
@@ -73,6 +76,35 @@ export default function Login() {
     }
   }
 
+  /**
+   * Ingreso con el código del mismo correo. Existe por el panel instalado en el
+   * iPhone: iOS abre los enlaces del correo en Safari y nunca dentro de la app
+   * instalada, así que con solo el enlace la sesión quedaba en el lugar
+   * equivocado — y sin sesión ahí no hay avisos al celular.
+   */
+  async function verificar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase || codigo.length < 6) return;
+    setVerificando(true);
+    setDetalle("");
+    const { error } = await supabase.auth.verifyOtp({
+      email: correo.trim().toLowerCase(),
+      token: codigo,
+      type: "email",
+    });
+    if (error) {
+      setVerificando(false);
+      const m = error.message.toLowerCase();
+      setDetalle(
+        m.includes("expired") || m.includes("invalid")
+          ? "Ese código no sirve: está mal escrito o ya venció. Revisa el último correo que llegó."
+          : enCristiano(error.message),
+      );
+      return;
+    }
+    window.location.href = "/";
+  }
+
   const bloqueado = estado === "enviando" || espera > 0;
 
   return (
@@ -100,16 +132,45 @@ export default function Login() {
         >
           <b className="font-semibold">Revisa tu correo.</b>
           <p className="mt-1.5" style={{ color: "var(--color-muted)" }}>
-            Te mandamos un enlace a <b>{correo}</b>. Ábrelo desde este mismo teléfono y quedas
-            dentro — no hay contraseña que recordar.
+            Te mandamos un correo a <b>{correo}</b> con un enlace y un código. Abre el enlace, o escribe el
+            código acá abajo.
           </p>
-          <p className="mt-1.5" style={{ color: "var(--color-muted)" }}>
-            Puede tardar un minuto. Si no llega, mira en spam antes de volver a pedirlo.
+          <form onSubmit={verificar} className="mt-3 flex gap-2">
+            <input
+              aria-label="Código del correo"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={8}
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ""))}
+              placeholder="Código"
+              className="min-w-0 flex-1 border px-3 py-2.5 text-[16px] tracking-[0.2em]"
+              style={{ background: "var(--color-bg)", borderColor: "var(--color-line)", color: "var(--color-ink)" }}
+            />
+            <button
+              type="submit"
+              disabled={codigo.length < 6 || verificando}
+              className="shrink-0 cursor-pointer px-4 text-[14px] font-medium disabled:cursor-default disabled:opacity-50"
+              style={{ background: "var(--color-ink)", color: "var(--color-bg)" }}
+            >
+              {verificando ? "Entrando…" : "Entrar"}
+            </button>
+          </form>
+          {detalle && (
+            <p className="mt-2 text-[13px]" style={{ color: "var(--color-a)" }}>
+              {detalle}
+            </p>
+          )}
+          <p className="mt-2 text-[12.5px]" style={{ color: "var(--color-muted)" }}>
+            Con el panel instalado en el iPhone usa el código: el enlace se abre en el navegador, no en el
+            panel. Si no llega, mira en spam.
           </p>
           <button
             onClick={() => {
               setEstado("listo");
               setDetalle("");
+              setCodigo("");
             }}
             className="mt-3 cursor-pointer text-[13px] underline"
             style={{ color: "var(--color-muted)" }}
