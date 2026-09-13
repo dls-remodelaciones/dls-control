@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { usuarioDeLaPeticion } from "@/lib/sesion";
-import { enviarTexto, ventanaAbierta, whatsappConfigurado } from "@/lib/whatsapp";
+import {
+  enviarTexto,
+  enviarPlantilla,
+  listarPlantillas,
+  plantillaRellena,
+  ventanaAbierta,
+  whatsappConfigurado,
+} from "@/lib/whatsapp";
 
 /**
  * La conversación de WhatsApp de un lead, desde el panel.
@@ -70,12 +77,24 @@ export async function GET(req: NextRequest) {
   const ultimo = ultimoEntrante(r.mensajes);
   const ventana = ventanaAbierta(ultimo);
 
+  // Con la ventana cerrada, lo único que Meta acepta son plantillas aprobadas.
+  // Se consultan solo en ese caso: si se puede escribir libremente, preguntarle
+  // a Meta por las plantillas es una llamada que a nadie le sirve.
+  let plantillas: unknown = undefined;
+  if (!ventana.abierta && whatsappConfigurado() && r.lead.telefono) {
+    const p = await listarPlantillas();
+    plantillas = p.ok
+      ? p.plantillas.filter((x) => x.estado === "APPROVED")
+      : { error: p.detalle };
+  }
+
   return NextResponse.json({
     ok: true,
     lead: { id: r.lead.id, nombre: r.lead.nombre, telefono: r.lead.telefono },
     puede_escribir: whatsappConfigurado() && Boolean(r.lead.telefono) && ventana.abierta,
     ventana: { ...ventana, ultimo_mensaje_del_cliente: ultimo },
     configurado: whatsappConfigurado(),
+    ...(plantillas ? { plantillas } : {}),
     // En orden de lectura: el más antiguo primero, como una conversación.
     mensajes: [...r.mensajes].reverse(),
   });
@@ -85,7 +104,7 @@ export async function POST(req: NextRequest) {
   const quien = await usuarioDeLaPeticion(req);
   if (!quien.ok) return NextResponse.json({ ok: false, error: quien.error }, { status: quien.status });
 
-  let body: { lead_id?: unknown; texto?: unknown };
+  let body: { lead_id?: unknown; texto?: unknown; plantilla?: unknown; valores?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -94,8 +113,12 @@ export async function POST(req: NextRequest) {
 
   const leadId = String(body.lead_id ?? "").trim();
   const texto = String(body.texto ?? "").trim();
+  const plantilla = String(body.plantilla ?? "").trim();
+  const valores = Array.isArray(body.valores) ? body.valores.map((v) => String(v ?? "").trim()) : [];
   if (!leadId) return NextResponse.json({ ok: false, error: "falta_lead_id" }, { status: 400 });
-  if (!texto) return NextResponse.json({ ok: false, error: "mensaje_vacio" }, { status: 400 });
+  if (!texto && !plantilla) {
+    return NextResponse.json({ ok: false, error: "mensaje_vacio" }, { status: 400 });
+  }
 
   const r = await cargar(leadId);
   if ("error" in r) return NextResponse.json({ ok: false, error: r.error }, { status: 404 });
@@ -110,7 +133,7 @@ export async function POST(req: NextRequest) {
   // rechace, pero entonces el mensaje se pierde sin explicación clara y el
   // intento igual cuenta contra los límites de la cuenta.
   const ventana = ventanaAbierta(ultimoEntrante(r.mensajes));
-  if (!ventana.abierta) {
+  if (!ventana.abierta && !plantilla) {
     return NextResponse.json(
       {
         ok: false,
@@ -122,7 +145,43 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const envio = await enviarTexto(r.lead.telefono, texto);
+  let envio;
+  let guardado = texto;
+  let asunto = "Respuesta por WhatsApp";
+
+  if (plantilla) {
+    // Se pide la plantilla a Meta en vez de confiar en lo que mandó el
+    // navegador: así se valida que siga aprobada y que los valores calcen con
+    // los huecos que de verdad tiene. Meta rechaza el envío entero si sobran o
+    // faltan, y ese rechazo llega sin decir cuál era el problema.
+    const lista = await listarPlantillas();
+    if (!lista.ok) {
+      return NextResponse.json({ ok: false, error: lista.error, detalle: lista.detalle }, { status: 502 });
+    }
+    const p = lista.plantillas.find((x) => x.nombre === plantilla && x.estado === "APPROVED");
+    if (!p) {
+      return NextResponse.json(
+        { ok: false, error: "plantilla_no_disponible", detalle: "Esa plantilla no existe o Meta aún no la aprueba." },
+        { status: 409 },
+      );
+    }
+    if (valores.length !== p.variables || valores.some((v) => !v)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "faltan_datos",
+          detalle: `La plantilla "${p.nombre}" necesita ${p.variables} dato(s) y ninguno puede ir vacío.`,
+        },
+        { status: 422 },
+      );
+    }
+    envio = await enviarPlantilla(r.lead.telefono, p.nombre, p.idioma, valores);
+    guardado = plantillaRellena(p.cuerpo, valores);
+    asunto = `Plantilla "${p.nombre}"`;
+  } else {
+    envio = await enviarTexto(r.lead.telefono, texto);
+  }
+
   if (!envio.ok) {
     return NextResponse.json(
       { ok: false, error: envio.error, detalle: envio.detalle },
@@ -131,13 +190,15 @@ export async function POST(req: NextRequest) {
   }
 
   // Queda registrado con el correo de quien lo mandó: si algún día hay más de
-  // una persona respondiendo, se sabe quién dijo qué.
+  // una persona respondiendo, se sabe quién dijo qué. De la plantilla se guarda
+  // el texto YA RELLENO, que es lo que la persona recibió — guardar el nombre
+  // de la plantilla obligaría a reconstruirlo después para saber qué se dijo.
   await r.db.from("mensajes").insert({
     lead_id: leadId,
     direccion: "saliente",
     canal: "whatsapp",
-    asunto: "Respuesta por WhatsApp",
-    cuerpo: texto,
+    asunto,
+    cuerpo: guardado,
     enviado_por: quien.email || "panel",
   });
   await r.db.from("leads").update({ ultima_actividad: new Date().toISOString() }).eq("id", leadId);

@@ -24,11 +24,21 @@ type Mensaje = {
   creado: string;
 };
 
+type Plantilla = {
+  nombre: string;
+  idioma: string;
+  categoria: string;
+  cuerpo: string;
+  variables: number;
+  estado: string;
+};
+
 type Estado = {
   puede_escribir: boolean;
   configurado: boolean;
   ventana: { abierta: boolean; horas_restantes: number; ultimo_mensaje_del_cliente: string | null };
   mensajes: Mensaje[];
+  plantillas?: Plantilla[] | { error: string };
 };
 
 const hora = (iso: string) =>
@@ -55,6 +65,9 @@ export default function Conversacion({
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  /** Plantilla elegida y los valores de sus huecos, cuando la ventana está cerrada. */
+  const [elegida, setElegida] = useState<string>("");
+  const [valores, setValores] = useState<string[]>([]);
   const caja = useRef<HTMLTextAreaElement>(null);
 
   const cargar = useCallback(async () => {
@@ -96,6 +109,27 @@ export default function Conversacion({
     void cargar();
   }, [texto, enviando, leadId, cargar]);
 
+  const enviarPlantilla = useCallback(async () => {
+    if (!elegida || enviando) return;
+    setEnviando(true);
+    setAviso(null);
+    const jwt = await conSesion();
+    const r = await fetch("/api/whatsapp/conversacion", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ lead_id: leadId, plantilla: elegida, valores }),
+    });
+    const j = await r.json();
+    setEnviando(false);
+    if (!j.ok) {
+      setAviso(j.detalle ?? j.error ?? "No se pudo enviar la plantilla.");
+      return;
+    }
+    setElegida("");
+    setValores([]);
+    void cargar();
+  }, [elegida, valores, enviando, leadId, cargar]);
+
   const marco = { borderColor: "var(--color-linesoft)" };
 
   if (aviso && !estado) {
@@ -115,6 +149,11 @@ export default function Conversacion({
   }
 
   const { ventana, mensajes, puede_escribir, configurado } = estado;
+  const aprobadas = Array.isArray(estado.plantillas) ? estado.plantillas : [];
+  const plantillaElegida = aprobadas.find((p) => p.nombre === elegida);
+  const vistaPrevia = plantillaElegida
+    ? plantillaElegida.cuerpo.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => valores[Number(n) - 1] || `…`)
+    : "";
 
   return (
     <div className="border-t" style={marco}>
@@ -221,18 +260,81 @@ export default function Conversacion({
             <>Este lead no dejó teléfono, así que no hay a dónde escribir.</>
           ) : (
             <>
-              WhatsApp solo permite responder texto libre dentro de las 24 horas siguientes al mensaje
-              del cliente. Para retomar la conversación ahora, escríbele{" "}
-              <a
-                href={alternativa}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-2"
-                style={{ color: "var(--color-a)" }}
-              >
-                desde tu celular
-              </a>
-              . Cuando él conteste, la ventana se abre de nuevo y puedes seguir desde acá.
+              <p>
+                Pasaron más de 24 horas, así que WhatsApp ya no permite texto libre. Puedes usar una
+                plantilla aprobada, o escribirle{" "}
+                <a
+                  href={alternativa}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2"
+                  style={{ color: "var(--color-a)" }}
+                >
+                  desde tu celular
+                </a>
+                . Cuando conteste, la ventana se abre de nuevo.
+              </p>
+
+              {aprobadas.length > 0 ? (
+                <div className="mt-2.5">
+                  <select
+                    value={elegida}
+                    onChange={(e) => {
+                      const p = aprobadas.find((x) => x.nombre === e.target.value);
+                      setElegida(e.target.value);
+                      setValores(p ? Array(p.variables).fill("") : []);
+                    }}
+                    className="w-full rounded-[3px] border px-2 py-1.5 text-[12.5px]"
+                    style={{ borderColor: "var(--color-line)", background: "var(--color-surface)" }}
+                  >
+                    <option value="">Elige una plantilla…</option>
+                    {aprobadas.map((p) => (
+                      <option key={p.nombre} value={p.nombre}>
+                        {p.nombre.replace(/_/g, " ")}
+                      </option>
+                    ))}
+                  </select>
+
+                  {plantillaElegida && (
+                    <>
+                      {/* La vista previa se arma con lo que ya escribió: así se ve
+                          el mensaje real antes de mandarlo, no una descripción. */}
+                      <div
+                        className="mt-2 rounded-[3px] border px-2.5 py-2 text-[12.5px] whitespace-pre-wrap"
+                        style={{ borderColor: "var(--color-line)", background: "var(--color-bg)", color: "var(--color-ink)" }}
+                      >
+                        {vistaPrevia}
+                      </div>
+                      {Array.from({ length: plantillaElegida.variables }, (_, i) => (
+                        <input
+                          key={i}
+                          value={valores[i] ?? ""}
+                          onChange={(e) => {
+                            const v = [...valores];
+                            v[i] = e.target.value;
+                            setValores(v);
+                          }}
+                          placeholder={`Dato ${i + 1}`}
+                          className="mt-1.5 w-full rounded-[3px] border px-2 py-1.5 text-[12.5px]"
+                          style={{ borderColor: "var(--color-line)", background: "var(--color-surface)" }}
+                        />
+                      ))}
+                      <button
+                        onClick={() => void enviarPlantilla()}
+                        disabled={enviando || valores.some((v) => !v.trim())}
+                        className="mt-2 cursor-pointer rounded-[3px] px-3.5 py-1.5 text-[12.5px] font-semibold disabled:cursor-default disabled:opacity-40"
+                        style={{ background: "var(--color-a)", color: "#fff" }}
+                      >
+                        {enviando ? "Enviando…" : "Enviar plantilla"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-2" style={{ color: "var(--color-muted)" }}>
+                  Todavía no tienes plantillas aprobadas por Meta.
+                </p>
+              )}
             </>
           )}
         </div>
