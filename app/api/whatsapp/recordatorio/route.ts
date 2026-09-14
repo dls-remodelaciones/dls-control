@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { avisar } from "@/lib/avisos";
 import { quienLlama } from "@/lib/cron";
+import { registrarLatido } from "@/lib/latidos";
 import { porVencer, accionesProximas, type AccionConFecha, type MensajeWA } from "@/lib/recordatorio";
 import { VENTANA_HORAS } from "@/lib/whatsapp";
 import { separarAdjunto } from "@/lib/adjuntos";
@@ -19,6 +20,8 @@ export async function GET(req: NextRequest) {
 
   const db = supabaseAdmin();
   if (!db) return NextResponse.json({ ok: false, error: "sin_base_de_datos" }, { status: 500 });
+  // Latido: la revisión diaria vigila que esta tarea siga corriendo (lib/latidos.ts).
+  if (cron) await registrarLatido(db, "recordatorio");
 
   // Basta con los mensajes de la ventana: una respuesta posterior al último
   // mensaje de la persona también cae dentro de estas 24 horas.

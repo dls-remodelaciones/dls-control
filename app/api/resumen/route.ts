@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { avisar } from "@/lib/avisos";
 import { quienLlama } from "@/lib/cron";
-import { resumirSemana, contarPendientesA, type FilaLead } from "@/lib/resumen";
+import { registrarLatido } from "@/lib/latidos";
+import { resumirSemana, contarPendientesA, avancesSemana, type CambioEstado, type FilaLead } from "@/lib/resumen";
 
 /**
  * Resumen semanal (cron de los lunes, `vercel.json`). Avisa al celular con los
@@ -15,6 +16,8 @@ export async function GET(req: NextRequest) {
 
   const db = supabaseAdmin();
   if (!db) return NextResponse.json({ ok: false, error: "sin_base_de_datos" }, { status: 500 });
+  // Latido: la revisión diaria vigila que esta tarea siga corriendo (lib/latidos.ts).
+  if (cron) await registrarLatido(db, "resumen");
 
   const DIA = 86_400_000;
   const ahora = Date.now();
@@ -22,9 +25,10 @@ export async function GET(req: NextRequest) {
   const hace14 = new Date(ahora - 14 * DIA).toISOString();
 
   const campos = "canal, clasificacion, estado, apto_para_llamar, creado";
-  const [recientes, pendientes] = await Promise.all([
+  const [recientes, pendientes, ediciones] = await Promise.all([
     db.from("leads").select(campos).gte("creado", hace14).limit(5000),
     db.from("leads").select(campos).eq("clasificacion", "A").eq("estado", "contacto_inicial").limit(5000),
+    db.from("actividad").select("antes, despues").eq("tipo", "edicion").gte("creado", hace7).limit(5000),
   ]);
   if (recientes.error || pendientes.error) {
     return NextResponse.json(
@@ -36,7 +40,12 @@ export async function GET(req: NextRequest) {
   const filas = (recientes.data ?? []) as FilaLead[];
   const semana = filas.filter((l) => l.creado >= hace7);
   const anterior = filas.filter((l) => l.creado < hace7);
-  const r = resumirSemana(semana, anterior, contarPendientesA((pendientes.data ?? []) as FilaLead[]));
+  const r = resumirSemana(
+    semana,
+    anterior,
+    contarPendientesA((pendientes.data ?? []) as FilaLead[]),
+    avancesSemana((ediciones.data ?? []) as CambioEstado[]),
+  );
 
   const aviso = cron ? await avisar({ ...r, url: "/", tag: "resumen-semanal" }) : null;
   return NextResponse.json({ ok: true, ...r, aviso });

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resumirSemana, contarPendientesA, type FilaLead } from "../lib/resumen";
+import { resumirSemana, contarPendientesA, avancesSemana, type FilaLead } from "../lib/resumen";
 
 const lead = (canal: string, clasificacion: string, extra: Partial<FilaLead> = {}): FilaLead => ({
   canal,
@@ -42,4 +42,18 @@ test("pendientes A: solo los aptos que siguen en contacto inicial", () => {
     lead("web", "B"),
   ];
   assert.equal(contarPendientesA(todos), 1);
+});
+
+test("embudo: cuenta los avances a visita, presupuesto y cierre de la semana", () => {
+  const cambio = (de: string, a: string) => ({ antes: { estado: de }, despues: { estado: a } });
+  const av = avancesSemana([
+    cambio("contacto_inicial", "visita_terreno"),
+    cambio("visita_terreno", "presupuesto_enviado"),
+    cambio("presupuesto_enviado", "cerrado"),
+    cambio("cerrado", "cerrado"), // editar sin cambiar estado no cuenta
+  ]);
+  assert.deepEqual(av, { visitas: 1, presupuestos: 1, cierres: 1 });
+  const r = resumirSemana([lead("web", "A")], [], 0, av);
+  assert.match(r.cuerpo, /Avanzaron: 1 visita, 1 presupuesto, 1 cierre\./);
+  assert.doesNotMatch(resumirSemana([lead("web", "A")], [], 0).cuerpo, /Avanzaron/);
 });

@@ -1,4 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { diferenciasConfig } from "@/lib/paridad";
+import { atrasadas, leerLatidos } from "@/lib/latidos";
+import { config } from "@/lib/negocio";
 import { BUCKET as BUCKET_RESPALDOS, DIAS_SIN_RESPALDO, ultimoRespaldo } from "@/lib/respaldo";
 import { CLAVE as CLAVE_ERRORES, UMBRAL_24H, resumen as resumenErrores, type ErrorSitio } from "@/lib/errores";
 import { consultarWhois, diasHasta, leerVencimiento, DIAS_AVISO, DOMINIO } from "@/lib/dominio";
@@ -96,6 +99,14 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
             : `No entra ningún lead hace ${dias} días. Prueba el cotizador y el chatbot del sitio: algo puede estar roto.`,
       );
     }
+
+    // Tareas automáticas: cada una deja un latido (lib/latidos.ts).
+    const retrasos = atrasadas(await leerLatidos(db), new Date());
+    anotar(
+      "Tareas automáticas",
+      retrasos.length === 0,
+      retrasos.length === 0 ? "Los recordatorios y el resumen semanal están corriendo." : retrasos.join(". ") + ".",
+    );
 
     // Respaldo: si el cron del domingo dejó de correr, que se note antes de necesitarlo.
     const { data: archivos, error: eResp } = await db.storage.from(BUCKET_RESPALDOS).list("", { limit: 1000 });
@@ -201,12 +212,31 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
   // 5. El sitio: arriba, con el mismo token que el panel y el número correcto.
   try {
     const marca = Date.now();
-    const [home, lead, cotizador] = await Promise.all([
+    const [home, lead, cotizador, reglas] = await Promise.all([
       traer(`${SITIO}/`),
       traer(`${SITIO}/dls-lead.js?salud=${marca}`),
       traer(`${SITIO}/dls-cotizador-embed.js?salud=${marca}`),
+      traer(`${SITIO}/config/negocio.json?salud=${marca}`),
     ]);
     anotar("Sitio web", home.ok, home.ok ? "Carga." : `dlsremodelaciones.cl respondió ${home.status}.`);
+
+    // El sitio y el panel tienen que calificar con las mismas reglas (lib/paridad.ts).
+    if (reglas.ok) {
+      try {
+        const dif = diferenciasConfig((await reglas.json()) as Record<string, unknown>, config());
+        anotar(
+          "Reglas de puntaje",
+          dif.length === 0,
+          dif.length === 0
+            ? "El sitio y el panel califican igual."
+            : `El sitio y el panel califican distinto (${dif.length}): ${dif.slice(0, 3).join(" | ")}${dif.length > 3 ? " …" : ""}`,
+        );
+      } catch {
+        anotar("Reglas de puntaje", false, "config/negocio.json del sitio no es un JSON válido.");
+      }
+    } else {
+      anotar("Reglas de puntaje", false, `No se pudo leer config/negocio.json del sitio (${reglas.status}).`);
+    }
 
     if (lead.ok && cotizador.ok) {
       const s = leerSitio(await lead.text(), await cotizador.text());

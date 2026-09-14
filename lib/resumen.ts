@@ -26,10 +26,34 @@ const NOMBRE_CANAL: Record<string, string> = {
   correo: "correo",
 };
 
+/** Cambios de estado registrados al editar fichas (actividad tipo "edicion"). */
+export interface CambioEstado {
+  antes: { estado?: string } | null;
+  despues: { estado?: string } | null;
+}
+
+/**
+ * Embudo de la semana: cuántos leads avanzaron a visita, presupuesto o cierre.
+ * Contar leads nuevos dice si llega gente; esto dice si se está convirtiendo.
+ */
+export function avancesSemana(cambios: CambioEstado[]): { visitas: number; presupuestos: number; cierres: number } {
+  const a = { visitas: 0, presupuestos: 0, cierres: 0 };
+  for (const c of cambios) {
+    const de = c.antes?.estado;
+    const a_ = c.despues?.estado;
+    if (!a_ || de === a_) continue;
+    if (a_ === "visita_terreno") a.visitas++;
+    if (a_ === "presupuesto_enviado") a.presupuestos++;
+    if (a_ === "cerrado") a.cierres++;
+  }
+  return a;
+}
+
 export function resumirSemana(
   semana: FilaLead[],
   anterior: FilaLead[],
   pendientesA: number,
+  avances: { visitas: number; presupuestos: number; cierres: number } = { visitas: 0, presupuestos: 0, cierres: 0 },
 ): { titulo: string; cuerpo: string } {
   const n = semana.length;
   const clases = { A: 0, B: 0, C: 0, D: 0 } as Record<string, number>;
@@ -63,6 +87,13 @@ export function resumirSemana(
       ? "No hay leads A esperando llamada."
       : `${pendientesA} ${pendientesA === 1 ? "lead A sigue" : "leads A siguen"} sin llamar.`,
   );
+
+  if (avances.visitas || avances.presupuestos || avances.cierres) {
+    const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
+    partes.push(
+      `Avanzaron: ${plural(avances.visitas, "visita", "visitas")}, ${plural(avances.presupuestos, "presupuesto", "presupuestos")}, ${plural(avances.cierres, "cierre", "cierres")}.`,
+    );
+  }
 
   return { titulo, cuerpo: partes.join(" ") };
 }
