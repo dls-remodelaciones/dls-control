@@ -22,6 +22,7 @@ Visitante ──> cotizador (iframe srcdoc) ─┐
           ──> formulario ────────────────┘        (origen, token, topes)     (dedupe, puntaje)        │
 Cliente ───> WhatsApp (+56 9 5638 1974) ──> Meta ──> POST /api/whatsapp/webhook ─────────────────────┤
 Cliente ───> Instagram DM (@dls.remodelaciones) ──> Meta ──> POST /api/instagram/webhook ────────────┤
+Cliente ───> Messenger (pág. DLS Expertos en Remodelaciones) ──> Meta ──> POST /api/facebook/webhook ┤
 Daniel ────> "+ Anotar lead" ──────────────────────> POST /api/leads/crear ─────────────────────────┘
                                                                                                     │
                             aviso al celular (Web Push, lib/avisos.ts) <────────────────────────────┘
@@ -41,6 +42,10 @@ Daniel ────> "+ Anotar lead" ──────────────�
   CONTACTO hasta que la persona deje un teléfono o correo en el DM. Solo entrada por ahora
   (sin responder desde el panel todavía); app de Meta separada ("DLS Control-IG",
   id 2053433005356915), cuenta `dls.remodelaciones` conectada como evaluadora.
+- **Facebook Messenger** (`lib/procesar-facebook.ts`, mismo patrón que Instagram, payload
+  casi idéntico salvo `object: "page"` y el sender es un PSID en vez de un IGSID): el lead
+  entra con `sesion_id: "fb:<PSID>"`, también SIN CONTACTO. Página "DLS Expertos en
+  Remodelaciones". Solo entrada por ahora, misma limitación que Instagram.
 
 ## Panel (pantallas)
 
@@ -63,6 +68,7 @@ Daniel ────> "+ Anotar lead" ──────────────�
 | `POST /api/leads/crear`, `/api/leads/actualizar` | panel | sesión de un correo del panel |
 | `GET/POST /api/whatsapp/webhook` | Meta | verify token / firma HMAC |
 | `GET/POST /api/instagram/webhook` | Meta | verify token / firma HMAC |
+| `GET/POST /api/facebook/webhook` | Meta | verify token / firma HMAC |
 | `GET/POST /api/whatsapp/conversacion` | panel | sesión |
 | `POST /api/push/suscribir`, `/api/push/probar` | panel | sesión |
 | `POST /api/correos/usado`, `/api/errores` | sitio | origen + token + tope |
@@ -100,11 +106,11 @@ Buckets privados: `respaldos` (JSON semanal), `adjuntos` (archivos de WhatsApp).
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
 `DLS_WEBHOOK_TOKEN`, `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_WABA_ID`, `WA_APP_SECRET`,
 `WA_VERIFY_TOKEN`, `IG_APP_SECRET`, `IG_VERIFY_TOKEN`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
-`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
+`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `FB_APP_SECRET`, `FB_VERIFY_TOKEN`.
 Opcionales: `PANEL_EMAILS`, `CRON_SECRET`, `EMAILJS_LIMITE`, `EMAILJS_DIA_REINICIO`.
-Pendiente: `IG_ACCESS_TOKEN` (identificador de acceso de Instagram) — no se guardó todavía;
-se genera de nuevo en el panel de Meta (Casos de uso → API de Instagram → paso 2) el día que
-se implemente responder DM desde el panel.
+Pendiente: `IG_ACCESS_TOKEN`/`FB_PAGE_ACCESS_TOKEN` (identificadores de acceso) — no se
+guardaron todavía; se generan de nuevo en el panel de Meta el día que se implemente responder
+DM desde el panel.
 
 ## Pruebas
 

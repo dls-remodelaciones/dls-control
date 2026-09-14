@@ -8,7 +8,7 @@ create extension if not exists "pgcrypto";
 -- ── LEADS ───────────────────────────────────────────────────────────────────
 create table if not exists leads (
   id                    uuid primary key default gen_random_uuid(),
-  canal                 text not null,   -- web|cotizador|chatbot|correo|whatsapp|instagram|manual
+  canal                 text not null,   -- web|cotizador|chatbot|correo|whatsapp|instagram|facebook|manual
   nombre                text,
   telefono              text,            -- normalizado E.164 sin '+': 56912345678
   telefono_crudo        text,            -- como lo escribió el cliente
