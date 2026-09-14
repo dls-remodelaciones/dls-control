@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase, configurado } from "@/lib/supabase";
 import { telHref, waHref, config, type Clase, type Lead, type Senal } from "@/lib/negocio";
 import Conversacion from "./conversacion";
@@ -44,6 +44,15 @@ type Tab = "hoy" | "bandeja" | "pipeline";
  */
 const TOPE_LEADS = 1000;
 
+/** Etapas del pipeline, en orden. Los nombres internos son los de la columna `estado`. */
+const ETAPAS: [string, string][] = [
+  ["cotizador_web", "Cotizó"],
+  ["visita_terreno", "Visita"],
+  ["presupuesto_enviado", "Presupuesto"],
+  ["cerrado", "Cerrado"],
+  ["no_prospero", "No prosperó"],
+];
+
 const CLASE_COLOR: Record<Clase, string> = {
   A: "var(--color-a)",
   B: "var(--color-b)",
@@ -56,6 +65,19 @@ export default function Pagina() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("hoy");
+  /**
+   * Lead que pidió abrir un aviso del celular (/?lead=<id>). Antes todos los
+   * avisos abrían la pantalla de inicio y había que buscar al cliente a mano.
+   */
+  const [enfoque, setEnfoque] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("lead");
+    if (!id) return;
+    setEnfoque(id);
+    setTab("bandeja");
+    // Se limpia la dirección: recargar no debería volver a saltar al mismo lead.
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
   const [filtro, setFiltro] = useState<Clase | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [sesion, setSesion] = useState<"revisando" | "dentro" | "fuera">("revisando");
@@ -270,6 +292,12 @@ export default function Pagina() {
                   : "Todos ya pasaron el filtro: tienen presupuesto, plazo, comuna y teléfono."}
             </p>
           )}
+          {/* El pipeline mezclaba todas las etapas sin decir cuántas hay en cada una. */}
+          {tab === "pipeline" && !cargando && (
+            <p className="mt-1.5 text-[13px] tabular-nums" style={{ color: "var(--color-muted)" }}>
+              {ETAPAS.map(([k, etiqueta]) => `${etiqueta} ${filas.filter((f) => f.estado === k).length}`).join(" · ")}
+            </p>
+          )}
           {tab === "bandeja" && !cargando && filas.length > 0 && (
             <input
               type="search"
@@ -333,7 +361,7 @@ export default function Pagina() {
         ) : (
           <ul className="space-y-2.5">
             {visibles.map((f) => (
-              <Ficha key={f.id} f={f} recargar={cargar} />
+              <Ficha key={f.id} f={f} recargar={cargar} enfocado={f.id === enfoque} />
             ))}
           </ul>
         )}
@@ -432,12 +460,38 @@ function hace(iso: string): string {
   return `hace ${Math.round(h / 24)} d`;
 }
 
-function Ficha({ f, esperaDesde, recargar }: { f: Fila; esperaDesde?: string; recargar: () => void }) {
+function Ficha({
+  f,
+  esperaDesde,
+  recargar,
+  enfocado = false,
+}: {
+  f: Fila;
+  esperaDesde?: string;
+  recargar: () => void;
+  /** Viene de un aviso del celular: se lleva a la vista y se abre. */
+  enfocado?: boolean;
+}) {
   // La conversación se carga solo cuando se abre: son decenas de fichas en
   // pantalla y no tiene sentido pedirle a la base el historial de todas.
   // Si está esperando respuesta, se abre sola: para eso está ahí.
-  const [conversando, setConversando] = useState(Boolean(esperaDesde));
-  const [viendoFicha, setViendoFicha] = useState(false);
+  const [conversando, setConversando] = useState(Boolean(esperaDesde) || (enfocado && Boolean(f.telefono)));
+  const [viendoFicha, setViendoFicha] = useState(enfocado && !f.telefono);
+  const tarjeta = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (enfocado) tarjeta.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [enfocado]);
+
+  /**
+   * Tocar "Llamar" deja rastro en la actividad del lead. Así el aviso de "leads
+   * A sin llamar" no insiste con alguien a quien ya se llamó, y el historial de
+   * la ficha muestra cuándo. No espera la respuesta: la llamada sale igual.
+   */
+  function registrarLlamada() {
+    void supabase?.from("actividad").insert({ lead_id: f.id, tipo: "llamada", quien: "panel" }).then(({ error }) => {
+      if (error) console.warn("No se pudo registrar la llamada:", error.message);
+    });
+  }
   const tipo = f.tipo_proyecto ? config().tipos[f.tipo_proyecto]?.label : "";
   const sub = [tipo, f.superficie_m2 ? `${f.superficie_m2} m²` : "", f.rango_presupuesto]
     .filter(Boolean)
@@ -450,11 +504,13 @@ function Ficha({ f, esperaDesde, recargar }: { f: Fila; esperaDesde?: string; re
 
   return (
     <li
-      className="border"
+      ref={tarjeta}
+      className="scroll-mt-20 border"
       style={{
         background: "var(--color-surface)",
         borderColor: "var(--color-line)",
         borderLeft: `3px solid ${color}`,
+        boxShadow: enfocado ? "0 0 0 2px var(--color-brand)" : undefined,
       }}
     >
       <div className="flex items-start gap-2.5 px-3.5 py-3">
@@ -514,6 +570,7 @@ function Ficha({ f, esperaDesde, recargar }: { f: Fila; esperaDesde?: string; re
         {f.telefono ? (
           <a
             href={telHref(f)}
+            onClick={registrarLlamada}
             className="flex-1 border-r py-2.5 text-center text-[12.5px] font-medium"
             style={{ borderColor: "var(--color-linesoft)" }}
           >

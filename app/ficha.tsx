@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Historial from "./historial";
 import { config, type Senal, type TipoProyecto } from "@/lib/negocio";
 
 /**
@@ -330,6 +331,8 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
           {guardando ? "Guardando…" : "Guardar"}
         </button>
       </div>
+
+      <Historial leadId={f.id} />
     </div>
   );
 }

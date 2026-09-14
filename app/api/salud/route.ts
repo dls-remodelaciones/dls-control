@@ -59,11 +59,19 @@ export async function GET(req: NextRequest) {
   if (db) {
     const { data: aes } = await db
       .from("leads")
-      .select("nombre, clasificacion, apto_para_llamar, estado, creado")
+      .select("id, nombre, clasificacion, apto_para_llamar, estado, creado")
       .eq("clasificacion", "A")
       .eq("estado", "contacto_inicial")
       .limit(500);
-    const lista = aSinLlamar((aes ?? []) as { nombre: string | null; clasificacion: string | null; apto_para_llamar: boolean | null; estado: string | null; creado: string }[], new Date());
+    // Los que Daniel ya llamó desde el panel (botón "Llamar") no cuentan como enfriándose.
+    const { data: llamadas } = await db.from("actividad").select("lead_id").eq("tipo", "llamada").limit(5000);
+    const llamados = new Set((llamadas ?? []).map((a) => a.lead_id as string));
+    const lista = aSinLlamar(
+      ((aes ?? []) as { id: string; nombre: string | null; clasificacion: string | null; apto_para_llamar: boolean | null; estado: string | null; creado: string }[]).filter(
+        (l) => !llamados.has(l.id),
+      ),
+      new Date(),
+    );
     enfriandose = lista.map((l) => l.nombre || "Sin nombre");
     if (lista.length && debeAvisar) {
       await avisar({
@@ -72,7 +80,7 @@ export async function GET(req: NextRequest) {
             ? "1 lead A lleva más de 2 días sin llamada"
             : `${lista.length} leads A llevan más de 2 días sin llamada`,
         cuerpo: `${enfriandose.slice(0, 5).join(", ")}${lista.length > 5 ? "…" : ""}. Si ya los llamaste, muévelos de estado en el panel.`,
-        url: "/",
+        url: lista.length === 1 ? `/?lead=${lista[0].id}` : "/",
         tag: "a-sin-llamar",
       });
     }
