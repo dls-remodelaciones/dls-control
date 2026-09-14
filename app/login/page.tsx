@@ -8,9 +8,12 @@ import { supabase, configurado } from "@/lib/supabase";
  * Daniel pone su correo y recibe un enlace y un código; cualquiera de los dos
  * lo deja dentro.
  *
- * Quién puede entrar no lo decide esta pantalla: lo decide Supabase, que tiene
- * los registros nuevos deshabilitados. Si un correo no está dado de alta, pide
- * el enlace y simplemente no le llega nada.
+ * Quién puede entrar no lo decide esta pantalla. Hay tres capas: los registros
+ * nuevos apagados en Supabase, `shouldCreateUser: false` acá, y — la que de
+ * verdad protege los datos — la lista de correos del panel en la base
+ * (`es_del_panel()`, migración 007) y en las rutas (`lib/sesion.ts`).
+ * OJO: hasta el 13-sep-2026 este comentario decía que los registros estaban
+ * apagados y no lo estaban. Verificarlo en Supabase, no creerle al comentario.
  */
 
 /** Supabase limita cuántos enlaces se piden seguidos. Este es el plazo habitual. */
@@ -63,7 +66,8 @@ export default function Login() {
     setEstado("enviando");
     const { error } = await supabase.auth.signInWithOtp({
       email: correo.trim().toLowerCase(),
-      options: { emailRedirectTo: window.location.origin },
+      // shouldCreateUser: false — pedir un código nunca crea una cuenta nueva.
+      options: { emailRedirectTo: window.location.origin, shouldCreateUser: false },
     });
     if (error) {
       setEstado("error");

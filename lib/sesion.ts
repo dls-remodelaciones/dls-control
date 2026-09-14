@@ -25,5 +25,20 @@ export async function usuarioDeLaPeticion(
   const { data, error } = await db.auth.getUser(jwt);
   if (error || !data?.user) return { ok: false, error: "sesion_invalida", status: 401 };
 
-  return { ok: true, email: data.user.email ?? "" };
+  // Tener sesión no basta: tiene que ser alguien del panel. Hasta el 13-sep-2026
+  // Supabase permitía registrarse, así que cualquiera que pidiera un código con
+  // su correo quedaba "con sesión" — y estas rutas mandan WhatsApp a clientes.
+  const email = (data.user.email ?? "").toLowerCase();
+  if (!correoDelPanel(email)) return { ok: false, error: "sin_permiso", status: 403 };
+
+  return { ok: true, email };
+}
+
+/** Correos con acceso al panel. Mismo listado que la función `es_del_panel()` de la base (007). */
+export function correoDelPanel(email: string): boolean {
+  const lista = (process.env.PANEL_EMAILS || "dls.lehmann@gmail.com")
+    .split(",")
+    .map((c) => c.trim().toLowerCase())
+    .filter(Boolean);
+  return lista.includes(email.trim().toLowerCase());
 }
