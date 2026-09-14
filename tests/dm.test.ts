@@ -73,6 +73,22 @@ test("el envío usa el identificador de acceso del canal que corresponde", async
   assert.match(visto, /token-fb-de-prueba/, "Messenger usa el de la página");
 });
 
+test("cada canal habla con su propio host de Meta", async () => {
+  // Probado en producción el 2026-09-14: un identificador de Instagram Login
+  // contra graph.facebook.com devuelve "Cannot parse access token", que parece
+  // un token mal copiado y en realidad es el host equivocado.
+  let url = "";
+  globalThis.fetch = (async (u: string) => {
+    url = String(u);
+    return new Response(JSON.stringify({ message_id: "m1" }), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  await enviarDM("ig:1", "hola");
+  assert.match(url, /^https:\/\/graph\.instagram\.com\//, "Instagram Login va por graph.instagram.com");
+  await enviarDM("fb:1", "hola");
+  assert.match(url, /^https:\/\/graph\.facebook\.com\//, "el token de página va por graph.facebook.com");
+});
+
 test("sin identificador de acceso se dice cuál falta, no un error genérico", async () => {
   delete process.env.IG_ACCESS_TOKEN;
   const r = await enviarDM("ig:1", "hola");

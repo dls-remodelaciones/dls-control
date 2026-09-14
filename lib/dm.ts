@@ -18,18 +18,35 @@
  * horas siguientes al último mensaje de la persona.
  */
 
-const GRAPH = "https://graph.facebook.com/v23.0";
-
 export const VENTANA_HORAS_DM = 24;
 
 export type EnvioDM = { ok: true; id_mensaje: string } | { ok: false; error: string; detalle: string };
 
 export type CanalDM = "instagram" | "facebook";
 
-/** Cómo se guarda cada canal en `sesion_id` y de dónde saca su identificador de acceso. */
-const CONFIG: Record<CanalDM, { prefijo: string; env: string; visible: string }> = {
-  instagram: { prefijo: "ig", env: "IG_ACCESS_TOKEN", visible: "Instagram" },
-  facebook: { prefijo: "fb", env: "FB_PAGE_ACCESS_TOKEN", visible: "Messenger" },
+/**
+ * Cómo se guarda cada canal en `sesion_id`, de dónde saca su identificador de
+ * acceso y contra qué host habla.
+ *
+ * Los dos hosts NO son intercambiables, y confundirlos cuesta una tarde: el
+ * identificador que entrega "Configuración de la API con el inicio de sesión de
+ * Instagram" es de Instagram Login, y `graph.facebook.com` ni siquiera puede
+ * interpretarlo — responde "Cannot parse access token", que suena a token mal
+ * copiado y no lo es. Los tokens de página de Messenger sí van por Facebook.
+ */
+const CONFIG: Record<CanalDM, { prefijo: string; env: string; visible: string; host: string }> = {
+  instagram: {
+    prefijo: "ig",
+    env: "IG_ACCESS_TOKEN",
+    visible: "Instagram",
+    host: "https://graph.instagram.com/v23.0",
+  },
+  facebook: {
+    prefijo: "fb",
+    env: "FB_PAGE_ACCESS_TOKEN",
+    visible: "Messenger",
+    host: "https://graph.facebook.com/v23.0",
+  },
 };
 
 /**
@@ -80,7 +97,7 @@ export async function enviarDM(sesionId: string | null | undefined, texto: strin
   if (!cuerpo) return { ok: false, error: "mensaje_vacio", detalle: "No hay nada que enviar." };
 
   try {
-    const r = await fetch(`${GRAPH}/me/messages`, {
+    const r = await fetch(`${conf.host}/me/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
