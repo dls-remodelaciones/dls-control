@@ -45,7 +45,18 @@ Daniel ────> "+ Anotar lead" ──────────────�
 - **Facebook Messenger** (`lib/procesar-facebook.ts`, mismo patrón que Instagram, payload
   casi idéntico salvo `object: "page"` y el sender es un PSID en vez de un IGSID): el lead
   entra con `sesion_id: "fb:<PSID>"`, también SIN CONTACTO. Página "DLS Expertos en
-  Remodelaciones". Solo entrada por ahora, misma limitación que Instagram.
+  Remodelaciones" (id 1282934911570871). Solo entrada por ahora, misma limitación que
+  Instagram. **Probado de punta a punta el 2026-09-14** con un DM real (webhook verificado,
+  página conectada, suscrita al campo `messages`, lead entrando).
+  **Pendiente crítico, a diferencia de Instagram: el permiso `pages_messaging` no tiene
+  Advanced Access.** Mientras no se complete la revisión de la aplicación (App Review) ante
+  Meta, el webhook solo recibe mensajes de personas con un rol en la app DLS Control
+  (Administrador, Desarrollador o Evaluador) — un cliente cualquiera que le escriba a la
+  página NO generará un lead. Instagram no tiene esta restricción porque usa el flujo de
+  "Instagram Login" con permisos estándar. Para destrabarlo: Meta for Developers → esta app →
+  Casos de uso → Messenger from Meta → Configuración de Messenger API → paso 3 "Completar la
+  revisión de la aplicación" → "Solicitar permiso" de `pages_messaging` (exige grabar un video
+  de demostración del caso de uso; puede tardar días en aprobarse).
 
 ## Panel (pantallas)
 
