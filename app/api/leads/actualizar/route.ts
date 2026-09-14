@@ -9,6 +9,7 @@ import {
   normalizarPlazo,
   normalizarPropiedad,
   emailValido,
+  interaccionPrevia,
   type Lead,
 } from "@/lib/negocio";
 
@@ -92,8 +93,9 @@ export async function POST(req: NextRequest) {
     ...(fusion as unknown as Lead),
     superficie_m2: Number(fusion.superficie_m2) || 0,
     fotos: Array.isArray(fusion.fotos) ? fusion.fotos : [],
-    termino_cotizador: Boolean(previo.termino_cotizador),
-    respondio_followup: Boolean(previo.respondio_followup),
+    // Del desglose guardado: la tabla no tiene columnas para estas señales, y
+    // leerlas de ahí hacía que editar la ficha le quitara puntos al lead.
+    ...interaccionPrevia(previo),
   });
 
   const { error: e2 } = await db

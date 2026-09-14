@@ -7,6 +7,7 @@ import {
   normalizarPlazo,
   normalizarPropiedad,
   emailValido,
+  interaccionPrevia,
   tierPresupuesto,
   config,
   type Lead,
@@ -77,8 +78,8 @@ export type Resultado =
 
 const txt = (v: unknown, max = 300) => String(v ?? "").trim().slice(0, max);
 
-export async function registrarLead(body: EntradaLead): Promise<Resultado> {
-  const db = supabaseAdmin();
+/** `db` se puede pasar para las pruebas (`tests/db-falsa.ts`); en producción es el cliente admin. */
+export async function registrarLead(body: EntradaLead, db = supabaseAdmin()): Promise<Resultado> {
   if (!db) {
     return { ok: false, error: "sin_base_de_datos", detalle: "Falta la clave de servicio.", status: 500 };
   }
@@ -107,7 +108,10 @@ export async function registrarLead(body: EntradaLead): Promise<Resultado> {
 
   const lead: Lead = {
     canal: txt(body.canal, 40) || "web",
-    nombre: txt(body.nombre, 120) || "Sin nombre",
+    // Vacío y no "Sin nombre": un texto de relleno cuenta como dato lleno al
+    // fusionar, y un WhatsApp sin perfil borraba el nombre real. El relleno se
+    // pone recién al guardar, si de verdad no hay ninguno.
+    nombre: txt(body.nombre, 120),
     telefono,
     telefono_crudo: txt(body.telefono, 60),
     email,
@@ -123,10 +127,16 @@ export async function registrarLead(body: EntradaLead): Promise<Resultado> {
   };
 
   // Dedupe por teléfono, correo o id de visita.
+  //
+  // Los valores van SIEMPRE entre comillas. El correo y el sesion_id llegan desde
+  // el sitio público, y en un filtro `.or()` la coma separa condiciones: un
+  // sesion_id "x,telefono.neq.0" sin comillas agregaba una condición que calza
+  // con cualquier lead, y el envío se fusionaba sobre la ficha de otro cliente.
+  const citar = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
   const filtros: string[] = [];
-  if (telefono) filtros.push(`telefono.eq.${telefono}`);
-  if (email) filtros.push(`email.eq.${email}`);
-  if (sesionId) filtros.push(`sesion_id.eq.${sesionId}`);
+  if (telefono) filtros.push(`telefono.eq.${citar(telefono)}`);
+  if (email) filtros.push(`email.eq.${citar(email)}`);
+  if (sesionId) filtros.push(`sesion_id.eq.${citar(sesionId)}`);
   const { data: previos } = await db.from("leads").select("*").or(filtros.join(",")).limit(1);
   const previo = previos?.[0] ?? null;
 
@@ -171,15 +181,16 @@ export async function registrarLead(body: EntradaLead): Promise<Resultado> {
     fusion.rango_presupuesto = principal.presupuesto;
   }
 
+  const antes = interaccionPrevia(previo);
   const cal = calificar({
     ...(fusion as unknown as Lead),
-    termino_cotizador: Boolean(fusion.termino_cotizador) || Boolean(previo?.termino_cotizador),
-    respondio_followup: Boolean(previo?.respondio_followup),
+    termino_cotizador: lead.termino_cotizador || antes.termino_cotizador,
+    respondio_followup: antes.respondio_followup,
   });
 
   const registro = {
     canal: fusion.canal,
-    nombre: fusion.nombre,
+    nombre: fusion.nombre || "Sin nombre",
     telefono: fusion.telefono || null,
     telefono_crudo: fusion.telefono_crudo || null,
     email: fusion.email || null,
@@ -196,7 +207,9 @@ export async function registrarLead(body: EntradaLead): Promise<Resultado> {
     clasificacion: cal.clasificacion,
     desglose: cal.desglose,
     apto_para_llamar: cal.apto_para_llamar,
-    fuente_original: txt(body.fuente_original, 200) || txt(body.canal, 40),
+    // "Original" quiere decir la primera: de dónde llegó esta persona, no por
+    // dónde escribió la última vez (eso ya lo dice `canal`).
+    fuente_original: previo?.fuente_original || txt(body.fuente_original, 200) || txt(body.canal, 40),
     sesion_id: sesionId || previo?.sesion_id || null,
     ultima_actividad: new Date().toISOString(),
   };
@@ -278,7 +291,7 @@ export async function registrarLead(body: EntradaLead): Promise<Resultado> {
     etiqueta: etiquetaAutomatica || creado ? etiqueta : etiquetaPrevia,
     contactable: contactableAhora,
     recien_contactable: contactableAhora && !eraContactable,
-    nombre: String(fusion.nombre ?? ""),
+    nombre: String(fusion.nombre || "Sin nombre"),
     tipo_proyecto: String(fusion.tipo_proyecto ?? ""),
     comuna: String(fusion.comuna ?? ""),
   };

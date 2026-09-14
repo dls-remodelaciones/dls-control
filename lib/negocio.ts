@@ -233,6 +233,29 @@ export function tierPresupuesto(tipo: TipoProyecto | "", etiqueta: unknown): "so
 
 /* ── Motor de calificación (Parte 5 de la especificación) ───────────────── */
 
+/**
+ * Señales de interacción de un lead ya guardado.
+ *
+ * La tabla `leads` no tiene columnas para "terminó el cotizador" ni "respondió
+ * el follow-up": esas señales solo existen en el momento del envío. Cada vez que
+ * la ficha se recalculaba (un WhatsApp nuevo, una edición a mano) se leían de una
+ * columna inexistente, daban `false` y el lead perdía esos puntos en silencio.
+ *
+ * Se recuperan del `desglose` guardado, que sí registra qué señales sumaron.
+ * Así funciona también para los leads que ya estaban en la base, sin migración.
+ */
+export function interaccionPrevia(previo: Record<string, unknown> | null | undefined): {
+  termino_cotizador: boolean;
+  respondio_followup: boolean;
+} {
+  const desglose = Array.isArray(previo?.desglose) ? (previo.desglose as Partial<Senal>[]) : [];
+  const detalle = String(desglose.find((s) => s?.senal === "Interacción")?.detalle ?? "");
+  return {
+    termino_cotizador: Boolean(previo?.termino_cotizador) || detalle.includes("cotizador"),
+    respondio_followup: Boolean(previo?.respondio_followup) || detalle.includes("follow-up"),
+  };
+}
+
 export function calificar(lead: Lead): Calificacion {
   const { pesos, puntos, umbrales } = CFG;
   const d: Senal[] = [];
