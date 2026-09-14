@@ -2,6 +2,8 @@ import { NextRequest, NextResponse, after } from "next/server";
 import crypto from "crypto";
 import { registrarLead } from "@/lib/registrar-lead";
 import { avisar } from "@/lib/avisos";
+import { fallidos, type EstadoWA } from "@/lib/entregas";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { normalizarTipo, normalizarM2, config, type TipoProyecto } from "@/lib/negocio";
 
 /**
@@ -98,6 +100,29 @@ function leerDelTexto(texto: string) {
   return { tipo, m2: coherente ? m2 : 0 };
 }
 
+/** Aviso al celular y rastro en la ficha cuando Meta no pudo entregar un mensaje. */
+async function avisarNoEntregado(telefono: string, motivo: string, codigo: number | null) {
+  const db = supabaseAdmin();
+  const { data: lead } = db
+    ? await db.from("leads").select("id, nombre").eq("telefono", telefono).limit(1).maybeSingle()
+    : { data: null };
+  const quien = (lead?.nombre as string | undefined) || `+${telefono}`;
+  if (db && lead?.id) {
+    await db.from("actividad").insert({
+      lead_id: lead.id,
+      tipo: "whatsapp_no_entregado",
+      despues: { motivo, codigo },
+      quien: "sistema",
+    });
+  }
+  await avisar({
+    titulo: `No se entregó tu WhatsApp a ${quien}`,
+    cuerpo: `Motivo: ${motivo}.`,
+    url: "/",
+    tag: `wa-fallido-${telefono}`,
+  });
+}
+
 export async function POST(req: NextRequest) {
   const crudo = await req.text();
 
@@ -133,7 +158,11 @@ export async function POST(req: NextRequest) {
     for (const cambio of entrada.changes ?? []) {
       const v = cambio.value ?? {};
 
-      // Los acuses de entrega también llegan por acá. No son leads.
+      // Los acuses de entrega también llegan por acá. No son leads, pero un
+      // "failed" significa que una respuesta de Daniel nunca llegó: se avisa.
+      for (const f of fallidos((v.statuses ?? []) as EstadoWA[])) {
+        after(() => avisarNoEntregado(f.telefono, f.motivo, f.codigo));
+      }
       if (!v.messages?.length) continue;
 
       for (const msg of v.messages) {
