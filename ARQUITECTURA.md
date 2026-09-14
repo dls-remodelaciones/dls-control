@@ -42,9 +42,23 @@ Daniel ────> "+ Anotar lead" ──────────────�
   de `sesion_id` y su etiqueta visible. Antes eran dos copias de las mismas 80 líneas.
 - **Instagram** (`lib/procesar-instagram.ts`, misma firma de Meta que WhatsApp): un DM no
   trae teléfono, solo un IGSID — el lead entra con `sesion_id: "ig:<IGSID>"` y queda SIN
-  CONTACTO hasta que la persona deje un teléfono o correo en el DM. Solo entrada por ahora
-  (sin responder desde el panel todavía); app de Meta separada ("DLS Control-IG",
-  id 2053433005356915), cuenta `dls.remodelaciones` conectada como evaluadora.
+  CONTACTO hasta que la persona deje un teléfono o correo en el DM. Cuenta
+  `dls.remodelaciones` (id 17841457090313946). **Entrada y salida funcionando**: probado de
+  punta a punta el 2026-09-14, con un DM real respondido desde el panel y recibido por la
+  persona.
+
+  Tres cosas que costaron una tarde y conviene no volver a pagar:
+  1. **No hay ninguna app "DLS Control-IG" separada.** `2053433005356915` es el id de la
+     *identidad de Instagram* dentro de la app DLS Control, no una app: buscarla en la lista
+     de aplicaciones no la encuentra. Todo se configura en DLS Control → Casos de uso →
+     "Administrar mensajes y contenido en Instagram".
+  2. **Instagram habla por `graph.instagram.com`, no por `graph.facebook.com`.** El
+     identificador es de Instagram Login y Facebook ni siquiera puede interpretarlo: responde
+     `(#190) Cannot parse access token`, que parece un token mal copiado y no lo es.
+  3. En esa misma pantalla conviven la **clave secreta de la aplicación** (32 caracteres) y el
+     **identificador de acceso** (~200, empieza en `IG`). Copiar la primera da exactamente el
+     mismo error de Meta. Por eso `lib/dm.ts` revisa la forma del identificador antes de
+     llamar: largo y prefijo, nunca el contenido.
 - **Facebook Messenger** (`lib/procesar-facebook.ts`, mismo patrón que Instagram, payload
   casi idéntico salvo `object: "page"` y el sender es un PSID en vez de un IGSID): el lead
   entra con `sesion_id: "fb:<PSID>"`, también SIN CONTACTO. Página "DLS Expertos en
@@ -139,14 +153,15 @@ WhatsApp viven en la misma app de Meta, así que el webhook cae de vuelta en `WA
 Si algún día Messenger se muda a su propia app, hay que crearla.
 La revisión diaria vigila que estén todas (`lib/salud.ts`).
 Opcionales: `PANEL_EMAILS`, `CRON_SECRET`, `EMAILJS_LIMITE`, `EMAILJS_DIA_REINICIO`.
-Pendiente: `IG_ACCESS_TOKEN` y `FB_PAGE_ACCESS_TOKEN`. **El código para responder DM ya está**
-(`lib/dm.ts` + `POST /api/dm/enviar`, con pruebas); lo único que falta son estos dos
-identificadores de acceso, y cada uno se genera en su propia app de Meta: el de Instagram en
-"DLS Control-IG", el de la página en "DLS Control" → Casos de uso → Messenger → paso 2. Sin
-ellos el envío responde `sin_configuracion` diciendo cuál falta.
-**Ojo con la asimetría**: con el identificador puesto, Instagram funciona de inmediato con
-cualquier cliente (permisos estándar), mientras que Messenger seguirá rechazando los envíos a
-quien no tenga un rol en la app hasta que Meta apruebe la revisión de `pages_messaging`.
+`IG_ACCESS_TOKEN` (2026-09-14): responder DM de Instagram desde el panel, funcionando. Se
+genera en Casos de uso → Instagram → "2. Genera identificadores de acceso" → "Generar
+identificador" en la fila de la cuenta; se muestra una sola vez.
+
+Pendiente: `FB_PAGE_ACCESS_TOKEN`, para responder Messenger. Se genera en Casos de uso →
+Messenger → paso 2. **Pero guardarlo no alcanza**: `pages_messaging` sin Advanced Access solo
+deja escribirle a quien tenga un rol en la app, así que Messenger sigue bloqueado por la
+revisión de Meta, que a su vez espera la verificación del negocio. Instagram no tuvo esa
+restricción.
 
 ## Deudas conocidas
 
