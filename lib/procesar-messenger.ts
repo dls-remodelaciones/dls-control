@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { registrarLead } from "@/lib/registrar-lead";
 import { leerDelTexto } from "@/lib/procesar-whatsapp";
+import { telefonoEnTexto, correoEnTexto } from "@/lib/contacto-en-texto";
 
 /**
  * Lo común entre Instagram y Messenger, que usan la misma Messenger Platform de
@@ -85,12 +86,20 @@ export async function procesarMessenger(
       }
 
       const legible = textoLegible(canal, msg);
-      const { tipo, m2 } = leerDelTexto(msg.text ?? "");
+      const texto = msg.text ?? "";
+      const { tipo, m2 } = leerDelTexto(texto);
+      // Muy seguido la persona escribe su teléfono o su correo en el propio
+      // mensaje. Sin esto el lead quedaba SIN CONTACTO con el dato a la vista, y
+      // además no se juntaba con la ficha que ya existiera de esa misma persona.
+      const telefono = telefonoEnTexto(texto);
+      const email = correoEnTexto(texto);
 
       const alta = await registrarLead(
         {
           canal: canal.nombre,
           sesion_id: `${canal.prefijo}:${de}`,
+          telefono,
+          email,
           tipo_proyecto: tipo,
           superficie_m2: m2 || "",
           mensaje: legible,

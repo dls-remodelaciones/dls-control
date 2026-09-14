@@ -50,6 +50,38 @@ test("un mismo IGSID en dos DM seguidos actualiza el mismo lead en vez de duplic
   assert.equal(tablas.mensajes.length, 2);
 });
 
+test("si escribe su teléfono en el DM, el lead deja de estar SIN CONTACTO", async () => {
+  const { db, tablas } = dbFalsa();
+  await procesarInstagram(
+    [entrada({ mid: "ig-mid.T1", text: "hola, quiero cotizar una cocina de 20 m2, llámame al 9 8765 4321" })],
+    db,
+  );
+  assert.equal(tablas.leads.length, 1);
+  assert.equal(tablas.leads[0].telefono, "56987654321");
+  assert.notEqual(tablas.leads[0].etiqueta, "SIN CONTACTO");
+});
+
+test("un DM se junta con la ficha que ya existía de esa persona, por el teléfono", async () => {
+  // El caso real: alguien ya registrado por el sitio escribe después por
+  // Instagram. Sin leer el teléfono del texto quedaban dos fichas separadas.
+  const { db, tablas } = dbFalsa([
+    { id: "lead-viejo", nombre: "Ana Pérez", telefono: "56987654321", canal: "web", clasificacion: "B", score: 50 },
+  ]);
+  await procesarInstagram([entrada({ mid: "ig-mid.T2", text: "soy Ana, mi fono es +56 9 8765 4321" })], db);
+  assert.equal(tablas.leads.length, 1, "no se crea una ficha nueva");
+  assert.equal(tablas.leads[0].nombre, "Ana Pérez", "no se pierde el nombre que ya se sabía");
+});
+
+test("las cifras del proyecto no se confunden con un teléfono", async () => {
+  const { db, tablas } = dbFalsa();
+  await procesarInstagram(
+    [entrada({ mid: "ig-mid.T3", text: "quiero un quincho de 30 m2, tengo 2.000 UF de presupuesto" })],
+    db,
+  );
+  assert.equal(tablas.leads[0].telefono, null);
+  assert.equal(tablas.leads[0].etiqueta, "SIN CONTACTO");
+});
+
 test("un adjunto sin texto se guarda como mensaje legible sin inventar tipo de proyecto", async () => {
   const { db, tablas } = dbFalsa();
   const r = await procesarInstagram([entrada({ mid: "ig-mid.E1", attachments: [{ type: "image" }] })], db);
