@@ -16,6 +16,13 @@ import { supabase, configurado } from "@/lib/supabase";
  * apagados y no lo estaban. Verificarlo en Supabase, no creerle al comentario.
  */
 
+/**
+ * Largo del código del correo. Es el "Email OTP length" de Supabase (Auth →
+ * Providers → Email), verificado el 14-sep-2026: 8 dígitos. Si se cambia allá,
+ * cambiarlo acá.
+ */
+const LARGO_CODIGO = 8;
+
 /** Supabase limita cuántos enlaces se piden seguidos. Este es el plazo habitual. */
 const ESPERA_SEGUNDOS = 20;
 
@@ -88,12 +95,16 @@ export default function Login() {
    */
   async function verificar(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabase || codigo.length < 6) return;
+    await verificarCodigo(codigo);
+  }
+
+  async function verificarCodigo(valor: string) {
+    if (!supabase || valor.length < 6 || verificando) return;
     setVerificando(true);
     setDetalle("");
     const { error } = await supabase.auth.verifyOtp({
       email: correo.trim().toLowerCase(),
-      token: codigo,
+      token: valor,
       type: "email",
     });
     if (error) {
@@ -145,10 +156,16 @@ export default function Login() {
               inputMode="numeric"
               autoComplete="one-time-code"
               pattern="[0-9]*"
-              maxLength={8}
+              maxLength={LARGO_CODIGO}
+              autoFocus
               value={codigo}
-              onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ""))}
-              placeholder="Código"
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, "").slice(0, LARGO_CODIGO);
+                setCodigo(v);
+                // Al completar el código (o pegarlo entero) entra solo: un toque menos en el celular.
+                if (v.length === LARGO_CODIGO) void verificarCodigo(v);
+              }}
+              placeholder={`Código de ${LARGO_CODIGO} dígitos`}
               className="min-w-0 flex-1 border px-3 py-2.5 text-[16px] tracking-[0.2em]"
               style={{ background: "var(--color-bg)", borderColor: "var(--color-line)", color: "var(--color-ink)" }}
             />

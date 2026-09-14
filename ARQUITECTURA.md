@@ -47,7 +47,7 @@ Daniel ────> "+ Anotar lead" ──────────────�
 | `app/nuevo.tsx` | Alta manual |
 | `app/avisos.tsx` + `public/sw.js` | Activar y recibir avisos al celular |
 | `app/estado.tsx` | "Estado del sistema" (los chequeos de la revisión diaria) |
-| `app/login/page.tsx` | Ingreso por enlace o código de 6 dígitos |
+| `app/login/page.tsx` | Ingreso por enlace o código de 8 dígitos (entra solo al completarlo) |
 
 ## Rutas del servidor
 
