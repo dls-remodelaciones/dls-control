@@ -3,6 +3,7 @@ import { firmaValida } from "@/lib/firma-meta";
 import { avisar } from "@/lib/avisos";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { procesarFacebook, type EntradaFB } from "@/lib/procesar-facebook";
+import { guardarAdjuntoDM } from "@/lib/adjuntos";
 
 /**
  * Entrada de Messenger (página "DLS Expertos en Remodelaciones").
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
   const r = await procesarFacebook(entradas, db);
 
   for (const aviso of r.avisos) after(() => avisar(aviso).then(() => undefined));
+  if (db) for (const a of r.adjuntos) after(() => guardarAdjuntoDM(db, a));
 
   // Siempre 200: si Meta recibe un error, reintenta el mismo mensaje durante horas.
   return NextResponse.json({ ok: true, procesados: r.procesados, duplicados: r.duplicados });

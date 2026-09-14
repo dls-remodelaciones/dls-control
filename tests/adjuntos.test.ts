@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { separarAdjunto, guardarAdjunto, BUCKET } from "../lib/adjuntos";
+import { separarAdjunto, guardarAdjunto, guardarAdjuntoDeUrl, BUCKET } from "../lib/adjuntos";
 import { dbFalsa } from "./db-falsa";
 
 /**
@@ -122,6 +122,35 @@ test("un id de mensaje con caracteres raros no arma una ruta peligrosa", async (
   assert.ok(ruta);
   assert.ok(!ruta!.includes(".."), `la ruta no debe salirse del bucket: ${ruta}`);
   assert.match(ruta!, /^whatsapp\/\d{4}-\d{2}\/etcpasswd\./);
+});
+
+/* ── adjuntos de Instagram y Messenger ──────────────────────────────────── */
+
+test("la foto de un DM se descarga de la URL que trae el propio webhook", async () => {
+  const { db, guardados, buckets } = dbFalsa();
+  globalThis.fetch = (async () =>
+    new Response(new Uint8Array(2048), { status: 200, headers: { "Content-Type": "image/jpeg" } })) as typeof fetch;
+
+  const ruta = await guardarAdjuntoDeUrl(db, "https://lookaside.fbsbx.com/foto", "image", "instagram:mid.1");
+
+  assert.ok(ruta, "debería devolver la ruta");
+  assert.match(ruta!, /^meta\/\d{4}-\d{2}\//);
+  assert.deepEqual(buckets, [BUCKET]);
+  assert.equal(guardados[0].contentType, "image/jpeg");
+});
+
+test("una URL de Meta ya vencida no rompe el webhook", async () => {
+  const { db, guardados } = dbFalsa();
+  globalThis.fetch = (async () => new Response(null, { status: 403 })) as typeof fetch;
+  assert.equal(await guardarAdjuntoDeUrl(db, "https://lookaside.fbsbx.com/vencida", "image", "instagram:mid.2"), null);
+  assert.equal(guardados.length, 0);
+});
+
+test("un archivo demasiado grande de un DM se descarta", async () => {
+  const { db, guardados } = dbFalsa();
+  globalThis.fetch = (async () => new Response(new Uint8Array(21 * 1024 * 1024), { status: 200 })) as typeof fetch;
+  assert.equal(await guardarAdjuntoDeUrl(db, "https://lookaside.fbsbx.com/grande", "image", "instagram:mid.3"), null);
+  assert.equal(guardados.length, 0);
 });
 
 test("un audio se guarda con la extensión que le corresponde", async () => {

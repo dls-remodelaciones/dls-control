@@ -21,7 +21,8 @@ import { telefonoEnTexto, correoEnTexto } from "@/lib/contacto-en-texto";
 export interface MensajeMeta {
   mid?: string;
   text?: string;
-  attachments?: { type?: string }[];
+  /** La Messenger Platform entrega la URL del archivo acá mismo; vence pronto. */
+  attachments?: { type?: string; payload?: { url?: string } }[];
   is_echo?: boolean;
 }
 
@@ -38,6 +39,8 @@ export interface Resultado {
   procesados: number;
   duplicados: number;
   avisos: { titulo: string; cuerpo: string; url: string; tag: string }[];
+  /** Fotos y audios por descargar: su URL vence en minutos (lib/adjuntos.ts). */
+  adjuntos: { url: string; tipo: string; asunto: string; legible: string }[];
 }
 
 /** Lo único que cambia de un canal al otro. */
@@ -65,7 +68,7 @@ export async function procesarMessenger(
   entradas: EntradaMessenger[],
   db: SupabaseClient | null,
 ): Promise<Resultado> {
-  const r: Resultado = { procesados: 0, duplicados: 0, avisos: [] };
+  const r: Resultado = { procesados: 0, duplicados: 0, avisos: [], adjuntos: [] };
 
   for (const entrada of entradas) {
     for (const evento of entrada.messaging ?? []) {
@@ -113,6 +116,18 @@ export async function procesarMessenger(
         continue;
       }
       r.procesados++;
+
+      // Una foto de la cocina es lo que permite cotizar bien: se guarda antes de
+      // que Meta venza la URL. La descarga la hace la ruta, después de responder.
+      const adjunto = msg.attachments?.[0];
+      if (adjunto?.payload?.url && idMeta) {
+        r.adjuntos.push({
+          url: adjunto.payload.url,
+          tipo: adjunto.type ?? "file",
+          asunto: asuntoDe(canal, idMeta),
+          legible,
+        });
+      }
 
       r.avisos.push({
         titulo: `${canal.visible} de ${alta.nombre !== "Sin nombre" ? alta.nombre : "un cliente"}`,

@@ -3,6 +3,7 @@ import { firmaValida } from "@/lib/firma-meta";
 import { avisar } from "@/lib/avisos";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { procesarInstagram, type EntradaIG } from "@/lib/procesar-instagram";
+import { guardarAdjuntoDM } from "@/lib/adjuntos";
 
 /**
  * Entrada de Instagram Direct (API de Instagram, app "DLS Control-IG").
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
 
   // Igual que WhatsApp: el aviso va después de responder, Meta reintenta si no recibe respuesta a tiempo.
   for (const aviso of r.avisos) after(() => avisar(aviso).then(() => undefined));
+  if (db) for (const a of r.adjuntos) after(() => guardarAdjuntoDM(db, a));
 
   // Siempre 200: si Meta recibe un error, reintenta el mismo mensaje durante horas.
   return NextResponse.json({ ok: true, procesados: r.procesados, duplicados: r.duplicados });
