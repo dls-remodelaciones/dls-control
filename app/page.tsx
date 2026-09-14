@@ -7,6 +7,7 @@ import Conversacion from "./conversacion";
 import FichaDetalle from "./ficha";
 import NuevoLead from "./nuevo";
 import Avisos from "./avisos";
+import { aCsv } from "@/lib/exportar";
 
 type Proyecto = {
   tipo: string;
@@ -265,6 +266,15 @@ export default function Pagina() {
                   : "Todos ya pasaron el filtro: tienen presupuesto, plazo, comuna y teléfono."}
             </p>
           )}
+          {tab === "bandeja" && !cargando && filas.length > 0 && (
+            <button
+              onClick={() => descargarExcel(filas)}
+              className="mt-1.5 cursor-pointer text-[13px] underline underline-offset-2"
+              style={{ color: "var(--color-muted)" }}
+            >
+              Descargar los {filas.length} leads en Excel
+            </button>
+          )}
           {/* Si se llegó al tope, decirlo. Un lead que no se ve es un lead perdido. */}
           {filas.length >= TOPE_LEADS && (
             <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-a)" }}>
@@ -343,6 +353,19 @@ export default function Pagina() {
       </nav>
     </Marco>
   );
+}
+
+/** Arma el CSV en el navegador y lo descarga. En el iPhone abre la hoja de compartir. */
+function descargarExcel(filas: Fila[]) {
+  const csv = aCsv(filas as unknown as Record<string, unknown>[]);
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `leads-dls-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 /* ── Piezas ─────────────────────────────────────────────────────────────── */
