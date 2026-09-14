@@ -3,6 +3,7 @@ import { registrarLead, type EntradaLead } from "@/lib/registrar-lead";
 import { avisar } from "@/lib/avisos";
 import { config, type TipoProyecto } from "@/lib/negocio";
 import { Ventana, avisosDeLead, ipDe, MAX_BYTES, porIpDelSitio, porIpSinOrigen } from "@/lib/limite";
+import { ORIGENES, cors } from "@/lib/cors";
 
 /** Un solo aviso de "muchos leads seguidos" cada 10 minutos. */
 const alertaDeInundacion = new Ventana(1, 10 * 60_000);
@@ -27,22 +28,6 @@ const alertaDeInundacion = new Ventana(1, 10 * 60_000);
  * no un token más largo.
  */
 
-const ORIGENES = [
-  "https://dlsremodelaciones.cl",
-  "https://www.dlsremodelaciones.cl",
-  "http://localhost:3000",
-  "http://localhost:8765",
-];
-
-function cors(origen: string | null) {
-  const permitido = origen && ORIGENES.includes(origen) ? origen : ORIGENES[0];
-  return {
-    "Access-Control-Allow-Origin": permitido,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-DLS-Token",
-    "Access-Control-Max-Age": "86400",
-  };
-}
 
 export async function OPTIONS(req: NextRequest) {
   return new NextResponse(null, { status: 204, headers: cors(req.headers.get("origin")) });

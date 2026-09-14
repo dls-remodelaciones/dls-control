@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { CLAVE as CLAVE_CORREOS, limite, proximoReinicio, vigente, type Uso } from "@/lib/correos";
 
 /**
  * Revisión de salud de todo el circuito de leads.
@@ -76,6 +77,23 @@ export async function revisarSalud(): Promise<Chequeo[]> {
     anotar("Base de datos", !error, error ? `Supabase respondió con error: ${error.message}` : "Responde.");
     const subs = await db.from("push_subs").select("id", { count: "exact", head: true });
     suscritos = subs.count ?? 0;
+
+    // Cupo de EmailJS. Se avisa al 80 %: con el tope encima ya no hay margen
+    // para cambiar de plan antes de que los correos dejen de salir.
+    const { data: fila } = await db.from("config").select("valor").eq("clave", CLAVE_CORREOS).maybeSingle();
+    const ahora = new Date();
+    const uso = vigente((fila?.valor as Uso | undefined) ?? null, ahora);
+    const tope = limite();
+    anotar(
+      "Cupo de correos",
+      uso.cantidad < tope * 0.8,
+      `${uso.cantidad} de ${tope} correos de EmailJS en este ciclo (se reinicia el ${proximoReinicio(ahora)}).` +
+        (uso.cantidad >= tope * 0.8
+          ? uso.cantidad >= tope
+            ? " Llegó al tope: los correos a clientes NO están saliendo."
+            : " Queda poco: al llegar al tope los correos dejan de salir."
+          : ""),
+    );
   }
 
   // 3. WhatsApp: token vivo y número correcto.
