@@ -81,7 +81,14 @@ export async function POST(req: NextRequest) {
   }
   delete body.token;
 
-  const r = await registrarLead(body);
+  // Un reintento si la base falla (Supabase a veces corta con "Gateway Timeout").
+  // Es seguro: si el primer intento alcanzó a guardar, el dedupe lo encuentra.
+  let r = await registrarLead(body);
+  if (!r.ok && r.status >= 500) {
+    console.warn("Leads: la base falló, reintentando", r.error, r.detalle);
+    await new Promise((listo) => setTimeout(listo, 800));
+    r = await registrarLead(body);
+  }
   if (!r.ok) {
     return NextResponse.json(
       { ok: false, error: r.error, detalle: r.detalle },
