@@ -34,7 +34,22 @@ export async function GET(req: NextRequest) {
     .limit(2000);
   if (error) return NextResponse.json({ ok: false, error: "consulta", detalle: error.message }, { status: 500 });
 
-  const lista = porVencer((data ?? []) as MensajeWA[]);
+  // Un chat marcado como atendido cuenta como respondido en ese momento.
+  const { data: atendidos } = await db
+    .from("actividad")
+    .select("lead_id, creado")
+    .eq("tipo", "wa_atendido")
+    .gte("creado", desde)
+    .limit(2000);
+  const lista = porVencer([
+    ...((data ?? []) as MensajeWA[]),
+    ...((atendidos ?? []) as { lead_id: string; creado: string }[]).map((a) => ({
+      lead_id: a.lead_id,
+      direccion: "saliente",
+      cuerpo: null,
+      creado: a.creado,
+    })),
+  ]);
 
   // Recordatorios que Daniel se puso en la ficha y caen en la hora siguiente.
   const ahora = Date.now();

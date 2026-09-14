@@ -57,3 +57,26 @@ test("embudo: cuenta los avances a visita, presupuesto y cierre de la semana", (
   assert.match(r.cuerpo, /Avanzaron: 1 visita, 1 presupuesto, 1 cierre\./);
   assert.doesNotMatch(resumirSemana([lead("web", "A")], [], 0).cuerpo, /Avanzaron/);
 });
+
+test("motivos de no prosperó, del más frecuente al menos", async () => {
+  const { motivosSemana } = await import("../lib/resumen");
+  assert.equal(
+    motivosSemana([{ motivo_no_prospero: "Precio / presupuesto" }, { motivo_no_prospero: "Precio / presupuesto" }, { motivo_no_prospero: null }]),
+    "No prosperaron 3: 2 precio / presupuesto, 1 sin motivo anotado.",
+  );
+  assert.equal(motivosSemana([]), "");
+});
+
+test("tiempo de respuesta: mediana de la primera respuesta a cada mensaje del cliente", async () => {
+  const { tiempoRespuesta, textoTiempo } = await import("../lib/resumen");
+  const m = (lead_id: string, direccion: string, hhmm: string) => ({ lead_id, direccion, creado: `2026-09-14T${hhmm}:00Z` });
+  const t = tiempoRespuesta([
+    m("a", "entrante", "10:00"), m("a", "entrante", "10:05"), m("a", "saliente", "10:20"), // 20 min
+    m("b", "entrante", "11:00"), m("b", "saliente", "13:00"), // 120 min
+    m("c", "entrante", "12:00"), m("c", "saliente", "12:10"), // 10 min
+    m("d", "entrante", "15:00"), // sin respuesta todavía: no cuenta
+  ]);
+  assert.deepEqual(t, { mediana: 20, conversaciones: 3 });
+  assert.equal(textoTiempo(t), "Respondiste los WhatsApp en 20 min (mediana de 3 respuestas).");
+  assert.equal(tiempoRespuesta([m("x", "entrante", "10:00")]), null);
+});

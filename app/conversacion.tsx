@@ -74,11 +74,16 @@ export default function Conversacion({
   leadId,
   telefono,
   alternativa,
+  esperando = false,
+  alAtender,
 }: {
   leadId: string;
   telefono: string | null;
   /** Enlace wa.me, para cuando la ventana está cerrada y hay que usar el celular. */
   alternativa: string;
+  /** El cliente escribió y nadie ha respondido: se ofrece "Marcar como atendido". */
+  esperando?: boolean;
+  alAtender?: () => void;
 }) {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [texto, setTexto] = useState("");
@@ -212,9 +217,26 @@ export default function Conversacion({
             <>Todavía no te ha escrito por WhatsApp</>
           )}
         </span>
-        <button onClick={() => void cargar()} className="cursor-pointer underline underline-offset-2">
-          Actualizar
-        </button>
+        <span className="flex shrink-0 gap-3">
+          {esperando && (
+            <button
+              onClick={() => {
+                // Para mensajes que no piden respuesta ("gracias", un 👍): sale de
+                // "Te escribieron" y del aviso de ventana por vencer.
+                void supabase
+                  ?.from("actividad")
+                  .insert({ lead_id: leadId, tipo: "wa_atendido", quien: "panel" })
+                  .then(({ error }) => (error ? setAviso("No se pudo marcar: " + error.message) : alAtender?.()));
+              }}
+              className="cursor-pointer underline underline-offset-2"
+            >
+              Marcar atendido
+            </button>
+          )}
+          <button onClick={() => void cargar()} className="cursor-pointer underline underline-offset-2">
+            Actualizar
+          </button>
+        </span>
       </div>
 
       {/* Historial. Solo WhatsApp: mezclar canales confunde más de lo que ayuda. */}

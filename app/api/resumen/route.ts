@@ -3,7 +3,17 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { avisar } from "@/lib/avisos";
 import { quienLlama } from "@/lib/cron";
 import { registrarLatido } from "@/lib/latidos";
-import { resumirSemana, contarPendientesA, avancesSemana, type CambioEstado, type FilaLead } from "@/lib/resumen";
+import {
+  resumirSemana,
+  contarPendientesA,
+  avancesSemana,
+  motivosSemana,
+  tiempoRespuesta,
+  textoTiempo,
+  type CambioEstado,
+  type FilaLead,
+  type MensajeTiempo,
+} from "@/lib/resumen";
 
 /**
  * Resumen semanal (cron de los lunes, `vercel.json`). Avisa al celular con los
@@ -25,10 +35,12 @@ export async function GET(req: NextRequest) {
   const hace14 = new Date(ahora - 14 * DIA).toISOString();
 
   const campos = "canal, clasificacion, estado, apto_para_llamar, creado";
-  const [recientes, pendientes, ediciones] = await Promise.all([
+  const [recientes, pendientes, ediciones, perdidos, chats] = await Promise.all([
     db.from("leads").select(campos).gte("creado", hace14).limit(5000),
     db.from("leads").select(campos).eq("clasificacion", "A").eq("estado", "contacto_inicial").limit(5000),
     db.from("actividad").select("antes, despues").eq("tipo", "edicion").gte("creado", hace7).limit(5000),
+    db.from("leads").select("motivo_no_prospero").eq("estado", "no_prospero").gte("ultima_actividad", hace7).limit(5000),
+    db.from("mensajes").select("lead_id, direccion, creado").eq("canal", "whatsapp").gte("creado", hace7).limit(10000),
   ]);
   if (recientes.error || pendientes.error) {
     return NextResponse.json(
@@ -46,6 +58,11 @@ export async function GET(req: NextRequest) {
     contarPendientesA((pendientes.data ?? []) as FilaLead[]),
     avancesSemana((ediciones.data ?? []) as CambioEstado[]),
   );
+  const extras = [
+    motivosSemana((perdidos.data ?? []) as { motivo_no_prospero: string | null }[]),
+    textoTiempo(tiempoRespuesta((chats.data ?? []) as MensajeTiempo[])),
+  ].filter(Boolean);
+  if (extras.length) r.cuerpo = `${r.cuerpo} ${extras.join(" ")}`;
 
   const aviso = cron ? await avisar({ ...r, url: "/", tag: "resumen-semanal" }) : null;
   return NextResponse.json({ ok: true, ...r, aviso });

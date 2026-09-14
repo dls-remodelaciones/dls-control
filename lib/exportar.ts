@@ -27,7 +27,21 @@ const COLUMNAS: [string, (f: Fila) => unknown][] = [
   ["Canal", (f) => f.canal],
   ["Fuente original", (f) => f.fuente_original],
   ["Nota interna", (f) => f.nota_interna],
+  ["Próxima acción", (f) => f.proxima_accion],
+  ["Fecha próxima acción", (f) => (f.fecha_proxima_accion ? new Date(String(f.fecha_proxima_accion)).toLocaleString("es-CL", { timeZone: "America/Santiago" }) : "")],
+  ["Motivo no prosperó", (f) => f.motivo_no_prospero],
+  ["Todos sus proyectos", (f) => proyectos(f.proyectos)],
+  ["Última actividad", (f) => String(f.ultima_actividad ?? "").slice(0, 10)],
 ];
+
+/** "Cocina 20 m² Ñuñoa · Baño 6 m² Ñuñoa": una persona puede pedir varias cosas. */
+function proyectos(v: unknown): string {
+  if (!Array.isArray(v)) return "";
+  return (v as Record<string, unknown>[])
+    .map((p) => [p.tipo, p.m2 ? `${p.m2} m²` : "", p.comuna].filter(Boolean).join(" "))
+    .filter(Boolean)
+    .join(" · ");
+}
 
 export function celda(v: unknown): string {
   let s = v === null || v === undefined ? "" : String(v);

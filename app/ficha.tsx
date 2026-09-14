@@ -28,6 +28,16 @@ const ESTADOS: [string, string][] = [
   ["no_prospero", "No prosperó"],
 ];
 
+export const MOTIVOS = [
+  "Precio / presupuesto",
+  "Eligió otra empresa",
+  "Postergó el proyecto",
+  "No respondió",
+  "Fuera de nuestra zona",
+  "No era un proyecto real",
+  "Otro",
+];
+
 const PLAZOS: [string, string][] = [
   ["", "Sin dato"],
   ["inmediato", "Inmediato"],
@@ -58,6 +68,7 @@ export type DatosFicha = {
   nota_interna?: string | null;
   proxima_accion?: string | null;
   fecha_proxima_accion?: string | null;
+  motivo_no_prospero?: string | null;
   score?: number;
   clasificacion?: string;
   desglose?: Senal[];
@@ -87,6 +98,7 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
     nota_interna: f.nota_interna ?? "",
     proxima_accion: f.proxima_accion ?? "",
     fecha_proxima_accion: aLocal(f.fecha_proxima_accion),
+    motivo_no_prospero: f.motivo_no_prospero ?? "",
   });
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -221,6 +233,23 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
             ))}
           </select>
         </label>
+
+        {/* Por qué no prosperó: la columna existía y nada la llenaba. Con el motivo,
+            el resumen semanal dice si se pierden clientes por precio, por plazo o
+            porque no contestaron — y eso sí se puede corregir. */}
+        {d.estado === "no_prospero" && (
+          <label className="col-span-2 text-[11px]" style={{ color: "var(--color-muted)" }}>
+            ¿Por qué no prosperó?
+            <select className={clase} style={campo} value={d.motivo_no_prospero} onChange={set("motivo_no_prospero")}>
+              <option value="">Sin dato</option>
+              {MOTIVOS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="col-span-2 text-[11px]" style={{ color: "var(--color-muted)" }}>
           Próxima acción

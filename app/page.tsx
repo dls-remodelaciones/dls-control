@@ -29,6 +29,8 @@ type Fila = Lead & {
   creado: string;
   proyectos?: Proyecto[];
   desglose?: Senal[];
+  proxima_accion?: string | null;
+  fecha_proxima_accion?: string | null;
 };
 
 type Tab = "hoy" | "bandeja" | "pipeline";
@@ -137,9 +139,25 @@ export default function Pagina() {
       // Vienen del más nuevo al más viejo: el primero de cada lead es el último.
       if (m.lead_id && !ultimo.has(m.lead_id)) ultimo.set(m.lead_id, m);
     }
+    // "Marcar como atendido": un cliente que escribió "gracias" no necesita respuesta,
+    // y sin esto quedaba para siempre arriba en "Te escribieron".
+    const { data: atendidos } = await supabase
+      .from("actividad")
+      .select("lead_id, creado")
+      .eq("tipo", "wa_atendido")
+      .order("creado", { ascending: false })
+      .limit(500);
+    const atendidoEn = new Map<string, string>();
+    for (const a of (atendidos ?? []) as { lead_id: string; creado: string }[]) {
+      if (!atendidoEn.has(a.lead_id)) atendidoEn.set(a.lead_id, a.creado);
+    }
+
     const pendientes = new Map<string, string>();
     for (const [id, m] of ultimo) {
-      if (m.direccion === "entrante") pendientes.set(id, m.creado);
+      const atendido = atendidoEn.get(id);
+      if (m.direccion === "entrante" && !(atendido && Date.parse(atendido) >= Date.parse(m.creado))) {
+        pendientes.set(id, m.creado);
+      }
     }
     setSinResponder(pendientes);
 
@@ -156,7 +174,18 @@ export default function Pagina() {
       .channel("leads-vivo")
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => void cargar())
       .subscribe();
+    // Respaldo con consulta periódica. Revisado el 14-sep-2026: la publicación de
+    // Realtime de Supabase no incluía ninguna tabla, así que el canal de arriba
+    // nunca avisó nada y la lista NO se actualizaba sola, aunque lo pareciera.
+    // Cada 45 s con la pantalla a la vista, y al volver a la app.
+    const refrescar = () => {
+      if (document.visibilityState === "visible") void cargar();
+    };
+    const t = setInterval(refrescar, 45_000);
+    document.addEventListener("visibilitychange", refrescar);
     return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", refrescar);
       void sb.removeChannel(canal);
     };
   }, [cargar, sesion]);
@@ -186,16 +215,39 @@ export default function Pagina() {
     [filas, sinResponder],
   );
 
+  // Recordatorios de la ficha que vencen hoy o ya vencieron, de leads todavía abiertos.
+  const paraHoy = useMemo(() => {
+    const finDeHoy = new Date();
+    finDeHoy.setHours(23, 59, 59, 999);
+    return filas
+      .filter(
+        (f) =>
+          f.fecha_proxima_accion &&
+          Date.parse(f.fecha_proxima_accion) <= finDeHoy.getTime() &&
+          f.estado !== "cerrado" &&
+          f.estado !== "no_prospero" &&
+          !sinResponder.has(f.id),
+      )
+      .sort((a, b) => Date.parse(a.fecha_proxima_accion!) - Date.parse(b.fecha_proxima_accion!));
+  }, [filas, sinResponder]);
+
+  // Cosas de hoy sin contar dos veces a quien está en más de una sección.
+  const totalHoy = useMemo(
+    () =>
+      new Set([...esperando.map((f) => f.id), ...paraHoy.map((f) => f.id), ...conteos.listaA.map((f) => f.id)]).size,
+    [esperando, paraHoy, conteos.listaA],
+  );
+
   const visibles = useMemo(() => {
     let v = filas;
     // En "Hoy" no se repiten arriba y abajo: si está esperando respuesta, ya
     // aparece en su propia sección.
-    if (tab === "hoy") v = conteos.listaA.filter((f) => !sinResponder.has(f.id));
+    if (tab === "hoy") v = conteos.listaA.filter((f) => !sinResponder.has(f.id) && !paraHoy.some((p) => p.id === f.id));
     if (tab === "pipeline") v = filas.filter((f) => f.estado !== "contacto_inicial");
     if (filtro) v = v.filter((f) => f.clasificacion === filtro);
     if (tab === "bandeja" && busqueda.trim()) v = v.filter((f) => coincide(f as unknown as Record<string, unknown>, busqueda));
     return v;
-  }, [filas, tab, filtro, busqueda, conteos.listaA, sinResponder]);
+  }, [filas, tab, filtro, busqueda, conteos.listaA, sinResponder, paraHoy]);
 
   /* Mientras se resuelve la sesión, la pantalla no parpadea con datos vacíos. */
   if (sesion !== "dentro") {
@@ -222,6 +274,7 @@ export default function Pagina() {
 
   return (
     <Marco alAnotar={() => setAnotando((v) => !v)}>
+      <SinConexion />
       <Avisos />
 
       {anotando && (
@@ -276,14 +329,14 @@ export default function Pagina() {
             {cargando
               ? "Cargando leads…"
               : tab === "hoy"
-                ? conteos.a + esperando.length === 0
+                ? totalHoy === 0
                   ? "Hoy no tienes nada pendiente"
-                  : `Hoy debes hacer ${conteos.a + esperando.length} ${conteos.a + esperando.length === 1 ? "cosa" : "cosas"}`
+                  : `Hoy debes hacer ${totalHoy} ${totalHoy === 1 ? "cosa" : "cosas"}`
                 : tab === "bandeja"
                   ? "Bandeja"
                   : "Pipeline"}
           </h1>
-          {tab === "hoy" && (conteos.a > 0 || esperando.length > 0) && (
+          {tab === "hoy" && (conteos.a > 0 || esperando.length > 0 || paraHoy.length > 0) && (
             <p className="mt-1.5 text-[13px]" style={{ color: "var(--color-muted)" }}>
               {esperando.length > 0 && conteos.a > 0
                 ? "Primero los que te escribieron; después los que pasaron el filtro completo."
@@ -328,6 +381,21 @@ export default function Pagina() {
         </div>
 
         {error && <Aviso titulo="No se pudieron leer los leads" detalle={error} />}
+
+        {/* Recordatorios anotados en la ficha para hoy o atrasados. El aviso al
+            celular llega una vez; esto los deja a la vista hasta que se resuelvan. */}
+        {!cargando && tab === "hoy" && paraHoy.length > 0 && (
+          <section className="mb-6">
+            <h2 className="mb-2 text-[11px] font-semibold tracking-[0.12em] uppercase" style={{ color: "var(--color-b)" }}>
+              Para hoy · {paraHoy.length}
+            </h2>
+            <ul className="space-y-2.5">
+              {paraHoy.map((f) => (
+                <Ficha key={f.id} f={f} recargar={cargar} />
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* Te escribieron y siguen esperando. Va antes que todo lo demás: es lo
             único de esta pantalla con un plazo corriendo en contra. */}
@@ -557,9 +625,21 @@ function Ficha({
           >
             {f.clasificacion} {f.score}
           </span>
-          {esperaDesde && (
+          {esperaDesde ? (
             <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-a)" }}>
               {hace(esperaDesde)}
+            </div>
+          ) : (
+            // Antigüedad: un A de hace 5 días no es lo mismo que uno de hace una hora.
+            f.creado && (
+              <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-muted)" }}>
+                entró {hace(f.creado)}
+              </div>
+            )
+          )}
+          {f.fecha_proxima_accion && (
+            <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-b)" }}>
+              {new Date(f.fecha_proxima_accion).toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
             </div>
           )}
         </div>
@@ -606,7 +686,16 @@ function Ficha({
       </div>
 
       {conversando && f.telefono && (
-        <Conversacion leadId={f.id} telefono={f.telefono} alternativa={waHref(f)} />
+        <Conversacion
+          leadId={f.id}
+          telefono={f.telefono}
+          alternativa={waHref(f)}
+          esperando={Boolean(esperaDesde)}
+          alAtender={() => {
+            setConversando(false);
+            recargar();
+          }}
+        />
       )}
 
       {viendoFicha && <FichaDetalle f={f} alGuardar={recargar} />}
@@ -644,6 +733,31 @@ function Vacia({ tab, enNutricion }: { tab: Tab; enNutricion: number }) {
           ? "Cuando muevas un lead a contactado o visita, aparece acá."
           : "Los leads del cotizador, el chatbot y el correo aparecen aquí solos."}
       </p>
+    </div>
+  );
+}
+
+/**
+ * Franja de "sin conexión". En una obra con mala señal el panel seguía mostrando
+ * la lista de hace una hora como si fuera la de ahora, y un mensaje enviado
+ * fallaba sin que se entendiera por qué.
+ */
+function SinConexion() {
+  const [enLinea, setEnLinea] = useState(true);
+  useEffect(() => {
+    const actualizar = () => setEnLinea(navigator.onLine);
+    actualizar();
+    window.addEventListener("online", actualizar);
+    window.addEventListener("offline", actualizar);
+    return () => {
+      window.removeEventListener("online", actualizar);
+      window.removeEventListener("offline", actualizar);
+    };
+  }, []);
+  if (enLinea) return null;
+  return (
+    <div className="border-b px-4 py-2 text-[12.5px] font-medium" style={{ background: "var(--color-warm)", borderColor: "var(--color-line)" }} role="status">
+      Sin conexión: lo que ves puede estar desactualizado y los mensajes no van a salir hasta que vuelva la señal.
     </div>
   );
 }
