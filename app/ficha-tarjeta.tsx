@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { telHref, waHref, config } from "@/lib/negocio";
 import { comoResponder } from "@/lib/canales";
+import ResponderDM from "./responder-dm";
 import Conversacion from "./conversacion";
 import FichaDetalle from "./ficha";
 import { CLASE_COLOR, type Fila } from "./tipos";
@@ -42,6 +43,8 @@ export default function Ficha({
   // pantalla y no tiene sentido pedirle a la base el historial de todas.
   // Si está esperando respuesta, se abre sola: para eso está ahí.
   const [conversando, setConversando] = useState(Boolean(esperaDesde) || (enfocado && Boolean(f.telefono)));
+  // Responder un DM: se abre solo si está esperando, igual que el chat de WhatsApp.
+  const [respondiendoDM, setRespondiendoDM] = useState(false);
   const [viendoFicha, setViendoFicha] = useState(enfocado && !f.telefono);
   const tarjeta = useRef<HTMLLIElement>(null);
   // Cambios escritos en la ficha y no guardados: cerrarla sin querer los perdía.
@@ -178,18 +181,19 @@ export default function Ficha({
             Llamar
           </a>
         ) : responder ? (
-          // Escribió por Instagram o Messenger y no dejó teléfono: la
-          // conversación existe, pero en la aplicación de Meta. Se lleva allá
-          // en vez de dejar un botón muerto.
-          <a
-            href={responder.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 border-r py-2.5 text-center text-[12.5px] font-medium"
-            style={{ borderColor: "var(--color-linesoft)" }}
+          // Escribió por Instagram o Messenger y no dejó teléfono. Se puede
+          // contestar desde acá; el enlace a la bandeja de Meta queda como
+          // salida cuando la ventana de 24 horas ya se cerró.
+          <button
+            onClick={() => setRespondiendoDM((v) => !v)}
+            className="flex-1 cursor-pointer border-r py-2.5 text-center text-[12.5px] font-medium"
+            style={{
+              borderColor: "var(--color-linesoft)",
+              color: respondiendoDM ? "var(--color-a)" : undefined,
+            }}
           >
-            {responder.texto}
-          </a>
+            {respondiendoDM ? "Cerrar respuesta" : responder.texto}
+          </button>
         ) : (
           <span
             className="flex-1 border-r py-2.5 text-center text-[12.5px]"
@@ -243,6 +247,23 @@ export default function Ficha({
             recargar();
           }}
         />
+      )}
+
+      {respondiendoDM && responder && (
+        <>
+          <ResponderDM
+            leadId={f.id}
+            canal={responder.texto.replace("Responder en ", "")}
+            alEnviar={recargar}
+          />
+          <div className="px-3.5 pb-3 text-[12px]" style={{ color: "var(--color-muted)" }}>
+            Si pasaron más de 24 horas desde su mensaje, Meta ya no deja responder desde acá:{" "}
+            <a href={responder.href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+              abrir la conversación en {responder.texto.replace("Responder en ", "")}
+            </a>
+            .
+          </div>
+        </>
       )}
 
       {viendoFicha && <FichaDetalle f={f} alGuardar={recargar} alCambiar={marcarSucia} />}
