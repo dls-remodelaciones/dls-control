@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { BUCKET as BUCKET_RESPALDOS, DIAS_SIN_RESPALDO, ultimoRespaldo } from "@/lib/respaldo";
 import { CLAVE as CLAVE_ERRORES, UMBRAL_24H, resumen as resumenErrores, type ErrorSitio } from "@/lib/errores";
 import { consultarWhois, diasHasta, leerVencimiento, DIAS_AVISO, DOMINIO } from "@/lib/dominio";
 import { DIAS_SILENCIO, diasSinLeads, type EstadoNombre } from "@/lib/novedades";
@@ -95,6 +96,20 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
             : `No entra ningún lead hace ${dias} días. Prueba el cotizador y el chatbot del sitio: algo puede estar roto.`,
       );
     }
+
+    // Respaldo: si el cron del domingo dejó de correr, que se note antes de necesitarlo.
+    const { data: archivos, error: eResp } = await db.storage.from(BUCKET_RESPALDOS).list("", { limit: 1000 });
+    const ultimoResp = eResp ? null : ultimoRespaldo((archivos ?? []).map((a) => a.name));
+    const diasResp = ultimoResp ? Math.floor((Date.now() - Date.parse(ultimoResp + "T00:00:00Z")) / 86_400_000) : null;
+    anotar(
+      "Respaldo semanal",
+      diasResp !== null && diasResp <= DIAS_SIN_RESPALDO,
+      diasResp === null
+        ? "No hay ningún respaldo de los datos todavía."
+        : diasResp <= DIAS_SIN_RESPALDO
+          ? `Último respaldo: ${ultimoResp}.`
+          : `El último respaldo es del ${ultimoResp} (hace ${diasResp} días): el respaldo semanal dejó de funcionar.`,
+    );
 
     // Errores de JavaScript de los visitantes: si se repiten, algo del sitio está roto para alguien.
     const { data: filaErrores } = await db.from("config").select("valor").eq("clave", CLAVE_ERRORES).maybeSingle();
