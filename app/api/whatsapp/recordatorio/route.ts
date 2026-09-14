@@ -4,6 +4,7 @@ import { avisar } from "@/lib/avisos";
 import { quienLlama } from "@/lib/cron";
 import { porVencer, accionesProximas, type AccionConFecha, type MensajeWA } from "@/lib/recordatorio";
 import { VENTANA_HORAS } from "@/lib/whatsapp";
+import { separarAdjunto } from "@/lib/adjuntos";
 
 /**
  * Cada hora (cron en `vercel.json`): avisa por los recordatorios de la ficha que
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
       const r = await avisar({
         titulo: `A las ${hora}: ${a.nombre || "un lead"}`,
         cuerpo: a.proxima_accion || "Tienes una próxima acción anotada para este lead.",
-        url: "/",
+        url: `/?lead=${a.id}`,
         tag: `accion-${a.id}`,
       });
       enviados += r.enviados;
@@ -74,8 +75,8 @@ export async function GET(req: NextRequest) {
     for (const l of lista) {
       const r = await avisar({
         titulo: `Quedan ${Math.floor(l.horas_restantes)} h para responderle a ${nombreDe.get(l.lead_id) ?? "un cliente"}`,
-        cuerpo: `Escribió: "${l.cuerpo.slice(0, 120)}". Después solo podrás mandarle plantillas.`,
-        url: "/",
+        cuerpo: `Escribió: "${separarAdjunto(l.cuerpo).texto.slice(0, 120)}". Después solo podrás mandarle plantillas.`,
+        url: `/?lead=${l.lead_id}`,
         // Mismo tag que el aviso del mensaje: reemplaza al original en vez de sumar otro.
         tag: `wa-${l.lead_id}`,
       });

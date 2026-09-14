@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { normalizarComuna } from "@/lib/comunas";
 import {
   calificar,
   normalizarTelefono,
@@ -116,7 +117,7 @@ export async function registrarLead(body: EntradaLead, db = supabaseAdmin()): Pr
     telefono_crudo: txt(body.telefono, 60),
     email,
     tipo_proyecto: normalizarTipo(body.tipo_proyecto),
-    comuna: txt(body.comuna, 80),
+    comuna: normalizarComuna(body.comuna),
     superficie_m2: normalizarM2(body.superficie_m2),
     rango_presupuesto: txt(body.rango_presupuesto, 80),
     financiamiento: txt(body.financiamiento, 40),

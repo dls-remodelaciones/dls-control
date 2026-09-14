@@ -22,7 +22,25 @@ type Mensaje = {
   cuerpo: string | null;
   enviado_por: string | null;
   creado: string;
+  /** Foto, audio o documento que mandó el cliente, con enlace firmado de 1 hora. */
+  adjunto?: { url: string; tipo: "imagen" | "audio" | "video" | "archivo" } | null;
 };
+
+/**
+ * Respuestas rápidas: se insertan en la caja para revisarlas antes de enviar,
+ * nunca salen solas. {nombre} se reemplaza por el primer nombre del cliente.
+ */
+function rellenar(p: string, nombre: string): string {
+  if (nombre) return p.replace(/\{nombre\}/g, nombre);
+  return p.replace(/ \{nombre\},/g, ",").replace(/^\{nombre\},\s*/, "").replace(/^./, (c) => c.toUpperCase());
+}
+
+const RAPIDAS: [string, string][] = [
+  ["Pedir detalles", "Hola {nombre}, gracias por escribirnos. ¿Me cuentas un poco más de tu proyecto? Qué quieres remodelar, en qué comuna y cuántos metros aproximados."],
+  ["Pedir fotos", "¿Me puedes mandar fotos del espacio? Con eso te damos un rango mucho más preciso."],
+  ["Ofrecer visita", "¿Te acomoda que coordinemos una visita técnica? No tiene costo ni compromiso. ¿Qué día y horario te sirve?"],
+  ["Te llamo", "{nombre}, te llamo en unos minutos a este número para conversarlo, ¿te parece?"],
+];
 
 type Plantilla = {
   nombre: string;
@@ -34,6 +52,7 @@ type Plantilla = {
 };
 
 type Estado = {
+  lead?: { nombre?: string | null };
   puede_escribir: boolean;
   configurado: boolean;
   ventana: { abierta: boolean; horas_restantes: number; ultimo_mensaje_del_cliente: string | null };
@@ -83,6 +102,16 @@ export default function Conversacion({
 
   useEffect(() => {
     void cargar();
+  }, [cargar]);
+
+  // Mientras la conversación está abierta y la pantalla a la vista, se revisa
+  // cada 20 segundos: antes había que apretar Actualizar para ver si el cliente
+  // contestó, y con el panel abierto uno cree que ya lo estaría viendo.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") void cargar();
+    }, 20_000);
+    return () => clearInterval(t);
   }, [cargar]);
 
   const enviar = useCallback(async () => {
@@ -202,6 +231,19 @@ export default function Conversacion({
                   }}
                 >
                   {m.cuerpo}
+                  {m.adjunto?.tipo === "imagen" && (
+                    <a href={m.adjunto.url} target="_blank" rel="noopener noreferrer" className="mt-1.5 block">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- URL firmada y temporal de Supabase */}
+                      <img src={m.adjunto.url} alt="Foto enviada por el cliente" className="max-h-56 w-auto rounded-[2px]" loading="lazy" />
+                    </a>
+                  )}
+                  {m.adjunto?.tipo === "audio" && <audio controls src={m.adjunto.url} className="mt-1.5 w-full max-w-[260px]" />}
+                  {m.adjunto?.tipo === "video" && <video controls src={m.adjunto.url} className="mt-1.5 max-h-56 w-full" />}
+                  {m.adjunto?.tipo === "archivo" && (
+                    <a href={m.adjunto.url} target="_blank" rel="noopener noreferrer" className="mt-1.5 block underline underline-offset-2">
+                      Abrir archivo
+                    </a>
+                  )}
                   <div
                     className="mt-1 text-[10.5px]"
                     style={{ color: mio ? "rgba(255,255,255,.75)" : "var(--color-muted)" }}
@@ -223,6 +265,24 @@ export default function Conversacion({
 
       {puede_escribir ? (
         <div className="px-3.5 pb-3">
+          <div className="mb-1.5 flex flex-wrap gap-1.5">
+            {RAPIDAS.map(([etiqueta, plantilla]) => (
+              <button
+                key={etiqueta}
+                type="button"
+                onClick={() => {
+                  const nombre = (estado.lead?.nombre ?? "").trim().split(/\s+/)[0];
+                  const listo = rellenar(plantilla, nombre === "Sin" ? "" : nombre);
+                  setTexto(listo);
+                  caja.current?.focus();
+                }}
+                className="cursor-pointer rounded-[3px] border px-2 py-1 text-[11.5px]"
+                style={{ borderColor: "var(--color-line)", color: "var(--color-muted)" }}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
           <textarea
             ref={caja}
             value={texto}

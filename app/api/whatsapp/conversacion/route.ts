@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { usuarioDeLaPeticion } from "@/lib/sesion";
+import { BUCKET as BUCKET_ADJUNTOS, separarAdjunto } from "@/lib/adjuntos";
 import {
   enviarTexto,
   enviarPlantilla,
@@ -40,6 +41,29 @@ function ultimoEntrante(mensajes: Mensaje[]): string | null {
   const entrantes = mensajes.filter((m) => m.direccion === "entrante" && m.canal === "whatsapp");
   if (!entrantes.length) return null;
   return entrantes.reduce((a, b) => (Date.parse(a.creado) > Date.parse(b.creado) ? a : b)).creado;
+}
+
+/**
+ * Fotos, audios y documentos que mandó el cliente (ver lib/adjuntos.ts): se
+ * quita la marca del texto y se agrega un enlace firmado que dura una hora.
+ */
+async function conAdjuntos(db: NonNullable<ReturnType<typeof supabaseAdmin>>, mensajes: Mensaje[]) {
+  return Promise.all(
+    mensajes.map(async (m) => {
+      const { texto, ruta } = separarAdjunto(m.cuerpo);
+      if (!ruta) return { ...m, adjunto: null };
+      const { data } = await db.storage.from(BUCKET_ADJUNTOS).createSignedUrl(ruta, 3600);
+      const ext = ruta.split(".").pop()?.toLowerCase() ?? "";
+      const tipo = ["jpg", "jpeg", "png", "webp"].includes(ext)
+        ? "imagen"
+        : ["ogg", "mp3", "m4a", "aac", "amr"].includes(ext)
+          ? "audio"
+          : ["mp4", "3gp", "mov"].includes(ext)
+            ? "video"
+            : "archivo";
+      return { ...m, cuerpo: texto, adjunto: data?.signedUrl ? { url: data.signedUrl, tipo } : null };
+    }),
+  );
 }
 
 function fallaDeCarga(error: string | undefined) {
@@ -113,7 +137,7 @@ export async function GET(req: NextRequest) {
     configurado: whatsappConfigurado(),
     ...(plantillas ? { plantillas } : {}),
     // En orden de lectura: el más antiguo primero, como una conversación.
-    mensajes: [...r.mensajes].reverse(),
+    mensajes: await conAdjuntos(r.db, [...r.mensajes].reverse()),
   });
 }
 

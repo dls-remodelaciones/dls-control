@@ -3,6 +3,8 @@ import { registrarLead } from "@/lib/registrar-lead";
 import { firmaValida } from "@/lib/firma-meta";
 import { avisar } from "@/lib/avisos";
 import { fallidos, type EstadoWA } from "@/lib/entregas";
+import { textoDeMensaje, medioDe, type MensajeEntrante } from "@/lib/wa-mensajes";
+import { guardarAdjunto, separarAdjunto } from "@/lib/adjuntos";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { normalizarTipo, normalizarM2, config, type TipoProyecto } from "@/lib/negocio";
 
@@ -81,7 +83,7 @@ async function avisarNoEntregado(telefono: string, motivo: string, codigo: numbe
   await avisar({
     titulo: `No se entregó tu WhatsApp a ${quien}`,
     cuerpo: `Motivo: ${motivo}.`,
-    url: "/",
+    url: lead?.id ? `/?lead=${lead.id}` : "/",
     tag: `wa-fallido-${telefono}`,
   });
 }
@@ -108,7 +110,7 @@ export async function POST(req: NextRequest) {
   type Entrada = {
     changes?: {
       value?: {
-        messages?: { from?: string; type?: string; text?: { body?: string }; timestamp?: string }[];
+        messages?: (MensajeEntrante & { from?: string; timestamp?: string })[];
         contacts?: { profile?: { name?: string }; wa_id?: string }[];
         statuses?: unknown[];
       };
@@ -133,12 +135,15 @@ export async function POST(req: NextRequest) {
         if (!de) continue;
 
         const perfil = v.contacts?.find((c) => c.wa_id === de)?.profile?.name ?? "";
-        const texto = msg.type === "text" ? String(msg.text?.body ?? "") : "";
-
-        // Un mensaje que no es texto (audio, imagen, ubicación) igual es un
-        // lead: la persona escribió. Se registra diciendo qué mandó.
-        const contenido = texto || `[${msg.type ?? "mensaje"} recibido por WhatsApp]`;
-        const { tipo, m2 } = leerDelTexto(texto);
+        // Todo mensaje es un lead: la persona escribió. Lo que no es texto se
+        // traduce (ubicación con mapa, contacto, botón) y los archivos se guardan
+        // antes de que venza la URL de Meta (lib/adjuntos.ts).
+        const legible = textoDeMensaje(msg);
+        const medio = medioDe(msg);
+        const dbAdjuntos = medio ? supabaseAdmin() : null;
+        const ruta = medio && dbAdjuntos ? await guardarAdjunto(dbAdjuntos, medio, String(msg.id ?? "")) : null;
+        const contenido = ruta ? `${legible}\nadjunto:${ruta}` : legible;
+        const { tipo, m2 } = leerDelTexto(msg.type === "text" ? legible : "");
 
         const r = await registrarLead({
           canal: "whatsapp",
@@ -159,8 +164,8 @@ export async function POST(req: NextRequest) {
           after(() =>
             avisar({
               titulo: `WhatsApp de ${quien}`,
-              cuerpo: contenido,
-              url: "/",
+              cuerpo: separarAdjunto(contenido).texto,
+              url: `/?lead=${leadId}`,
               tag: `wa-${leadId}`,
             }).then(() => undefined),
           );

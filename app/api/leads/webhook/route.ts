@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         avisar({
           titulo: `Lead nuevo · ${clasificacion} ${score}`,
           cuerpo: [nombre, tipo, comuna].filter(Boolean).join(" · ") || "Sin detalle",
-          url: "/",
+          url: `/?lead=${id}`,
           tag: `lead-${id}`,
         }).then(() => undefined),
       );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { usuarioDeLaPeticion } from "@/lib/sesion";
+import { normalizarComuna } from "@/lib/comunas";
 import {
   calificar,
   normalizarTelefono,
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
   }
   if (tiene("email")) fusion.email = emailValido(body.email) ? txt(body.email, 200).toLowerCase() : null;
   if (tiene("tipo_proyecto")) fusion.tipo_proyecto = normalizarTipo(body.tipo_proyecto) || null;
-  if (tiene("comuna")) fusion.comuna = txt(body.comuna, 80) || null;
+  if (tiene("comuna")) fusion.comuna = normalizarComuna(body.comuna) || null;
   if (tiene("superficie_m2")) fusion.superficie_m2 = normalizarM2(body.superficie_m2) || null;
   if (tiene("rango_presupuesto")) fusion.rango_presupuesto = txt(body.rango_presupuesto, 80) || null;
   if (tiene("plazo")) fusion.plazo = normalizarPlazo(body.plazo) || null;
