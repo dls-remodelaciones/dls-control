@@ -71,7 +71,9 @@ export function describir(a: Pick<Actividad, "tipo" | "antes" | "despues">): str
       return `Ficha editada${estado}${datos.length ? ` · ${datos.join(" · ")}` : ""}${puntaje()}`;
     }
     case "wa_atendido":
-      return "WhatsApp marcado como atendido";
+      // El nombre del tipo quedó de cuando solo había WhatsApp; ahora también
+      // lo usan los DM de Instagram y Messenger.
+      return "Marcado como atendido";
     case "score":
       return antes.score === undefined
         ? `Entró como ${despues.clasificacion} ${despues.score}`

@@ -13,6 +13,16 @@
  * muerto.
  */
 
+/**
+ * Canales donde alguien te escribe y se queda esperando respuesta.
+ *
+ * Los tres tienen ventana de 24 horas en Meta y la misma urgencia: un DM de
+ * Instagram sin contestar es tan caliente como un WhatsApp, y hasta ahora solo
+ * WhatsApp llegaba a la sección "Te escribieron" — los demás quedaban
+ * enterrados en la Bandeja hasta que alguien se acordara de mirar.
+ */
+export const CANALES_CONVERSACION = ["whatsapp", "instagram", "facebook"] as const;
+
 export interface ComoResponder {
   /** Texto del botón, en palabras de Daniel. */
   texto: string;

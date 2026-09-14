@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { CANALES_CONVERSACION } from "@/lib/canales";
 import type { Fila } from "./tipos";
 
 /**
@@ -62,7 +63,7 @@ export function useLeads(activo: boolean) {
     const { data: msg } = await supabase
       .from("mensajes")
       .select("lead_id, direccion, creado")
-      .eq("canal", "whatsapp")
+      .in("canal", [...CANALES_CONVERSACION])
       .order("creado", { ascending: false })
       .limit(500);
 

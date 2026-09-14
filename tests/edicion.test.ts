@@ -37,5 +37,6 @@ test("el historial dice qué datos cambiaron", () => {
     }),
     "Ficha editada · teléfono: vacío → 56956381974 · comuna: Ñuñoa → Providencia · nota actualizada",
   );
-  assert.equal(describir({ tipo: "wa_atendido", antes: null, despues: null }), "WhatsApp marcado como atendido");
+  // Sin nombrar WhatsApp: el mismo tipo lo usan ahora los DM de Instagram y Messenger.
+  assert.equal(describir({ tipo: "wa_atendido", antes: null, despues: null }), "Marcado como atendido");
 });

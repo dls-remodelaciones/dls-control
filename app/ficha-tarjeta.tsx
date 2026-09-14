@@ -63,6 +63,17 @@ export default function Ficha({
    * A sin llamar" no insiste con alguien a quien ya se llamó, y el historial de
    * la ficha muestra cuándo. No espera la respuesta: la llamada sale igual.
    */
+  /** Sale de "Te escribieron" sin tener que abrir un chat que no existe. */
+  function marcarAtendido() {
+    void supabase
+      ?.from("actividad")
+      .insert({ lead_id: f.id, tipo: "wa_atendido", quien: "panel" })
+      .then(({ error }) => {
+        if (error) console.warn("No se pudo marcar como atendido:", error.message);
+        recargar();
+      });
+  }
+
   function registrarLlamada() {
     void supabase?.from("actividad").insert({ lead_id: f.id, tipo: "llamada", quien: "panel" }).then(({ error }) => {
       if (error) console.warn("No se pudo registrar la llamada:", error.message);
@@ -197,6 +208,19 @@ export default function Ficha({
             }}
           >
             {conversando ? "Cerrar chat" : "WhatsApp"}
+          </button>
+        )}
+        {/* Un DM no se puede contestar desde el panel, así que nunca va a
+            aparecer un mensaje saliente que lo saque de "Te escribieron". Sin
+            esta salida, esa sección se llenaría de gente ya atendida y dejaría
+            de servir para lo único que sirve: lo que urge hoy. */}
+        {esperaDesde && !f.telefono && (
+          <button
+            onClick={marcarAtendido}
+            className="flex-1 cursor-pointer border-r py-2.5 text-center text-[12.5px] font-medium"
+            style={{ borderColor: "var(--color-linesoft)" }}
+          >
+            Ya le respondí
           </button>
         )}
         <button

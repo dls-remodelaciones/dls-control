@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { comoResponder } from "../lib/canales";
+import { comoResponder, CANALES_CONVERSACION } from "../lib/canales";
 
 /**
  * Un lead sin teléfono que llegó por Instagram o Messenger tiene que ofrecer
@@ -41,5 +41,18 @@ test("sin canal no revienta", () => {
 test("los enlaces son https, porque se abren en otra pestaña", () => {
   for (const canal of ["instagram", "facebook"]) {
     assert.match(comoResponder(canal)!.href, /^https:\/\//, canal);
+  }
+});
+
+test("los tres canales donde alguien queda esperando respuesta", () => {
+  assert.deepEqual([...CANALES_CONVERSACION], ["whatsapp", "instagram", "facebook"]);
+});
+
+test("todo canal de conversación sin teléfono ofrece dónde responder, salvo WhatsApp", () => {
+  // WhatsApp siempre trae teléfono, así que no necesita bandeja externa; los
+  // otros dos sí, porque un DM no deja ningún dato de contacto.
+  for (const canal of CANALES_CONVERSACION) {
+    if (canal === "whatsapp") continue;
+    assert.ok(comoResponder(canal), `${canal} debería ofrecer por dónde responder`);
   }
 });
