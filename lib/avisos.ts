@@ -46,11 +46,34 @@ export function avisosConfigurados(): boolean {
   return preparar();
 }
 
-/** Manda el aviso a todos los dispositivos suscritos. Devuelve cuántos lo recibieron. */
-export async function avisar(aviso: Aviso): Promise<{ enviados: number; fallidos: number; error?: string }> {
+/** Cómo sale un aviso. Se puede reemplazar en las pruebas para no salir a la red. */
+export type Enviador = (
+  destino: { endpoint: string; keys: { p256dh: string; auth: string } },
+  carga: string,
+) => Promise<unknown>;
+
+const porWebPush: Enviador = (destino, carga) =>
+  webpush.sendNotification(
+    destino,
+    carga,
+    // urgency high: con el celular en reposo, el sistema entrega de
+    // inmediato en vez de juntar el aviso para más tarde.
+    { TTL: 60 * 60 * 24, urgency: "high" },
+  );
+
+/**
+ * Manda el aviso a todos los dispositivos suscritos. Devuelve cuántos lo recibieron.
+ *
+ * `db` y `enviar` se pasan en las pruebas (mismo patrón que `registrarLead`);
+ * en producción salen de las variables de entorno.
+ */
+export async function avisar(
+  aviso: Aviso,
+  db = supabaseAdmin(),
+  enviar: Enviador = porWebPush,
+): Promise<{ enviados: number; fallidos: number; error?: string }> {
   try {
-    if (!preparar()) return { enviados: 0, fallidos: 0, error: "sin_claves_vapid" };
-    const db = supabaseAdmin();
+    if (enviar === porWebPush && !preparar()) return { enviados: 0, fallidos: 0, error: "sin_claves_vapid" };
     if (!db) return { enviados: 0, fallidos: 0, error: "sin_base_de_datos" };
 
     const { data: subs, error } = await db.from("push_subs").select("id, endpoint, p256dh, auth");
@@ -70,13 +93,7 @@ export async function avisar(aviso: Aviso): Promise<{ enviados: number; fallidos
     await Promise.all(
       (subs ?? []).map(async (s) => {
         try {
-          await webpush.sendNotification(
-            { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-            carga,
-            // urgency high: con el celular en reposo, el sistema entrega de
-            // inmediato en vez de juntar el aviso para más tarde.
-            { TTL: 60 * 60 * 24, urgency: "high" },
-          );
+          await enviar({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, carga);
           enviados++;
         } catch (e) {
           fallidos++;

@@ -52,6 +52,14 @@ function cumple(fila: Fila, cond: string): boolean {
   return op === "eq" ? v === esperado : v !== esperado;
 }
 
+/** Un archivo tal como quedó guardado en el almacenamiento falso. */
+export interface Guardado {
+  bucket: string;
+  ruta: string;
+  bytes: number;
+  contentType?: string;
+}
+
 export function dbFalsa(leadsIniciales: Fila[] = []) {
   const tablas: Record<string, Fila[]> = {
     leads: leadsIniciales.map((f) => structuredClone(f)),
@@ -59,12 +67,33 @@ export function dbFalsa(leadsIniciales: Fila[] = []) {
     actividad: [],
     cotizaciones: [],
   };
+  // Almacenamiento privado (buckets `adjuntos` y `respaldos`). Arranca vacío a
+  // propósito: así se prueba también que el bucket se cree la primera vez.
+  const buckets: string[] = [];
+  const guardados: Guardado[] = [];
   let n = 0;
+
+  const storage = {
+    listBuckets: async () => ({ data: buckets.map((name) => ({ name })), error: null }),
+    createBucket: async (name: string) => {
+      if (!buckets.includes(name)) buckets.push(name);
+      return { data: { name }, error: null };
+    },
+    from: (bucket: string) => ({
+      upload: async (ruta: string, cuerpo: Blob, opts?: { contentType?: string }) => {
+        if (!buckets.includes(bucket)) return { data: null, error: { message: "Bucket not found" } };
+        guardados.push({ bucket, ruta, bytes: cuerpo.size, contentType: opts?.contentType });
+        return { data: { path: ruta }, error: null };
+      },
+      list: async () => ({ data: guardados.filter((g) => g.bucket === bucket).map((g) => ({ name: g.ruta })), error: null }),
+    }),
+  };
 
   const from = (tabla: string) => {
     const filas = (tablas[tabla] ??= []);
     return {
-      select: () => ({
+      // `select()` se puede esperar directo (trae todo) o encadenar un filtro.
+      select: () => Object.assign(Promise.resolve({ data: filas.map((f) => structuredClone(f)), error: null }), {
         eq: (col: string, val: unknown) => ({
           limit: async (k: number) => ({ data: filas.filter((f) => f[col] === val).slice(0, k), error: null }),
         }),
@@ -85,6 +114,14 @@ export function dbFalsa(leadsIniciales: Fila[] = []) {
           return { error: null };
         },
       }),
+      delete: () => ({
+        in: async (col: string, valores: unknown[]) => {
+          for (let i = filas.length - 1; i >= 0; i--) {
+            if (valores.includes(filas[i][col])) filas.splice(i, 1);
+          }
+          return { error: null };
+        },
+      }),
       insert: (fila: Fila) => {
         const nueva = { id: `id-${++n}`, ...structuredClone(fila) };
         filas.push(nueva);
@@ -95,5 +132,5 @@ export function dbFalsa(leadsIniciales: Fila[] = []) {
     };
   };
 
-  return { db: { from } as never, tablas };
+  return { db: { from, storage } as never, tablas, guardados, buckets };
 }

@@ -29,8 +29,9 @@ export interface Chequeo {
   detalle: string;
 }
 
-const GRAPH = "https://graph.facebook.com/v21.0";
+const GRAPH = "https://graph.facebook.com/v23.0";
 const SITIO = "https://www.dlsremodelaciones.cl";
+const PANEL = "https://dls-control.vercel.app";
 const PLAZO_MS = 10_000;
 
 const CLAVES = [
@@ -42,10 +43,25 @@ const CLAVES = [
   "WA_WABA_ID",
   "WA_APP_SECRET",
   "WA_VERIFY_TOKEN",
+  // Instagram y Messenger: sin estas, sus webhooks devuelven 500 o rechazan a
+  // Meta, y los DM dejan de entrar sin que nada más lo note.
+  "IG_APP_SECRET",
+  "IG_VERIFY_TOKEN",
+  "FB_VERIFY_TOKEN",
   "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
   "VAPID_PRIVATE_KEY",
   "VAPID_SUBJECT",
 ];
+
+/**
+ * Canales de Meta que entran por webhook propio. Messenger no lleva
+ * FB_APP_SECRET a propósito: comparte la app de Meta con WhatsApp y el webhook
+ * cae de vuelta en WA_APP_SECRET (ver app/api/facebook/webhook/route.ts).
+ */
+const WEBHOOKS_META = [
+  { nombre: "Instagram", ruta: "/api/instagram/webhook" },
+  { nombre: "Messenger", ruta: "/api/facebook/webhook" },
+] as const;
 
 const env = (k: string) => (process.env[k] ?? "").trim();
 const soloDigitos = (s: string) => s.replace(/\D/g, "");
@@ -208,6 +224,39 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
       );
     } catch (e) {
       anotar("WhatsApp: entrada de mensajes", false, `No se pudo consultar a Meta: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  // 4b. Instagram y Messenger: el mismo apretón de manos que hace Meta cuando
+  //     re-verifica un webhook. Es la única forma de saber desde acá que el DM
+  //     de un cliente todavía tiene por dónde entrar: si la ruta se cayó, el
+  //     verify token cambió o la variable desapareció, un DM se pierde y hoy no
+  //     lo nota nadie hasta que el cliente reclama que nunca le respondieron.
+  for (const { nombre, ruta } of WEBHOOKS_META) {
+    const esperado = env(nombre === "Instagram" ? "IG_VERIFY_TOKEN" : "FB_VERIFY_TOKEN");
+    if (!esperado) {
+      anotar(`${nombre}: entrada de mensajes`, false, `Falta su clave en Vercel: los DM de ${nombre} no entran.`);
+      continue;
+    }
+    const reto = `salud${Date.now()}`;
+    try {
+      const r = await traer(
+        `${PANEL}${ruta}?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(esperado)}&hub.challenge=${reto}`,
+      );
+      const cuerpo = (await r.text()).trim();
+      anotar(
+        `${nombre}: entrada de mensajes`,
+        r.ok && cuerpo === reto,
+        r.ok && cuerpo === reto
+          ? "El webhook responde a Meta."
+          : `El webhook respondió ${r.status}: los mensajes de ${nombre} no están entrando al panel.`,
+      );
+    } catch (e) {
+      anotar(
+        `${nombre}: entrada de mensajes`,
+        false,
+        `No se pudo probar el webhook: ${e instanceof Error ? e.message : e}`,
+      );
     }
   }
 

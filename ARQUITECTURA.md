@@ -37,6 +37,9 @@ Daniel ────> "+ Anotar lead" ──────────────�
 - **WhatsApp**: firma de Meta en `lib/firma-meta.ts`; texto legible de cualquier tipo de
   mensaje en `lib/wa-mensajes.ts`; fotos/audios/documentos guardados en el bucket privado
   `adjuntos` (`lib/adjuntos.ts`); envíos y plantillas en `lib/whatsapp.ts`.
+- **Instagram y Messenger comparten la lógica** en `lib/procesar-messenger.ts` (misma
+  Messenger Platform, mismo payload): cada archivo de canal solo aporta su nombre, su prefijo
+  de `sesion_id` y su etiqueta visible. Antes eran dos copias de las mismas 80 líneas.
 - **Instagram** (`lib/procesar-instagram.ts`, misma firma de Meta que WhatsApp): un DM no
   trae teléfono, solo un IGSID — el lead entra con `sesion_id: "ig:<IGSID>"` y queda SIN
   CONTACTO hasta que la persona deje un teléfono o correo en el DM. Solo entrada por ahora
@@ -57,6 +60,18 @@ Daniel ────> "+ Anotar lead" ──────────────�
   Casos de uso → Messenger from Meta → Configuración de Messenger API → paso 3 "Completar la
   revisión de la aplicación" → "Solicitar permiso" de `pages_messaging` (exige grabar un video
   de demostración del caso de uso; puede tardar días en aprobarse).
+
+  **Trampa del App Review (descubierta el 2026-09-14):** además del video y los formularios,
+  Meta exige al menos **una llamada real a la Graph API con `pages_messaging`** antes de dejar
+  enviar la solicitud ("0 de las 1 llamadas a la API requeridas"). Como este webhook solo
+  *recibe*, nunca *llama*, el contador queda en cero para siempre por sí solo. Se destraba con
+  una llamada de lectura: `GET /1282934911570871/conversations` con un **identificador de
+  acceso de la página** (no sirve el de usuario: devuelve `(#190) This method must be called
+  with a Page Access Token`). Ese identificador se genera en Configuración de Messenger API →
+  paso 2 "Generar identificadores de acceso" → botón "Generar" de la fila de la página; se
+  muestra una sola vez. El desplegable "Usuario o página" del Explorador de la API Graph **no
+  sirve** para obtenerlo: pide el permiso obsoleto `manage_pages` y falla con "Invalid Scopes".
+  Meta tarda hasta 24 h en reflejar la llamada, y el test vence a los 30 días.
 
 ## Panel (pantallas)
 
@@ -96,7 +111,7 @@ Daniel ────> "+ Anotar lead" ──────────────�
 
 | Cuándo | Qué | Avisa |
 |---|---|---|
-| Diario 11:00 (8:00 Chile) | Revisión de salud: claves, base, leads entrando, latidos de tareas, respaldo, errores del sitio, cupo de correos, WhatsApp, sitio, reglas sitio=panel, dominio, avisos. Además: nombre de Meta y leads A sin llamar | Solo si algo falla o hay novedad |
+| Diario 11:00 (8:00 Chile) | Revisión de salud: claves, base, leads entrando, latidos de tareas, respaldo, errores del sitio, cupo de correos, WhatsApp, **Instagram y Messenger** (apretón de manos real contra su webhook), sitio, reglas sitio=panel, dominio, avisos. Además: nombre de Meta y leads A sin llamar | Solo si algo falla o hay novedad |
 | Cada hora | Recordatorios de la ficha y ventanas de WhatsApp por vencer | Por cada uno |
 | Lunes 12:00 | Resumen semanal con embudo | Siempre |
 | Domingo 07:00 | Respaldo de los datos al bucket privado `respaldos` | Solo si falla |
@@ -117,7 +132,11 @@ Buckets privados: `respaldos` (JSON semanal), `adjuntos` (archivos de WhatsApp).
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
 `DLS_WEBHOOK_TOKEN`, `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_WABA_ID`, `WA_APP_SECRET`,
 `WA_VERIFY_TOKEN`, `IG_APP_SECRET`, `IG_VERIFY_TOKEN`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
-`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `FB_APP_SECRET`, `FB_VERIFY_TOKEN`.
+`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `FB_VERIFY_TOKEN`.
+**`FB_APP_SECRET` no existe en Vercel a propósito** (verificado el 2026-09-14): Messenger y
+WhatsApp viven en la misma app de Meta, así que el webhook cae de vuelta en `WA_APP_SECRET`.
+Si algún día Messenger se muda a su propia app, hay que crearla.
+La revisión diaria vigila que estén todas (`lib/salud.ts`).
 Opcionales: `PANEL_EMAILS`, `CRON_SECRET`, `EMAILJS_LIMITE`, `EMAILJS_DIA_REINICIO`.
 Pendiente: `IG_ACCESS_TOKEN`/`FB_PAGE_ACCESS_TOKEN` (identificadores de acceso) — no se
 guardaron todavía; se generan de nuevo en el panel de Meta el día que se implemente responder
