@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   if (!db) return NextResponse.json({ ok: false, error: "sin_base_de_datos" }, { status: 500 });
 
   const [leads, mensajes, cotizaciones] = await Promise.all([
-    db.from("leads").select("id, nombre, fuente_original, desglose").limit(5000),
+    db.from("leads").select("id, nombre, fuente_original, desglose, comuna").limit(5000),
     db.from("mensajes").select("lead_id, canal, cuerpo, creado").eq("direccion", "entrante").limit(20000),
     db.from("cotizaciones").select("lead_id").limit(20000),
   ]);

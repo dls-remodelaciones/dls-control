@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     const antes: Record<string, unknown> = {};
 
     for (const c of p.cambios) {
-      if (c.campo === "nombre" || c.campo === "fuente_original") {
+      if (c.campo === "nombre" || c.campo === "fuente_original" || c.campo === "comuna") {
         antes[c.campo] = lead[c.campo] ?? null;
         cambios[c.campo] = c.propuesto;
       }

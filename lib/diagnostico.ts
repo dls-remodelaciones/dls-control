@@ -1,3 +1,5 @@
+import { normalizarComuna } from "@/lib/comunas";
+
 /**
  * Diagnóstico de fichas dañadas por las fallas corregidas el 13-sep-2026.
  *
@@ -16,6 +18,8 @@ export interface LeadDiag {
   nombre: string | null;
   fuente_original: string | null;
   desglose: { senal?: string; detalle?: string }[] | null;
+  /** Opcional para no romper llamadas viejas; si viene, se revisa que esté escrita con su nombre oficial. */
+  comuna?: string | null;
 }
 
 export interface MensajeDiag {
@@ -65,6 +69,15 @@ export function diagnosticar(leads: LeadDiag[], mensajes: MensajeDiag[], conCoti
           propuesto: String(conNombre.j!.nombre).trim().slice(0, 120),
           por_que: `Lo escribió en un envío del ${conNombre.m.creado.slice(0, 10)}.`,
         });
+      }
+    }
+
+    // 1b. Comuna escrita distinto al nombre oficial ("las condes" → "Las Condes").
+    //      Desde el 14-sep los leads nuevos llegan normalizados; esto ordena los de antes.
+    if (l.comuna) {
+      const oficial = normalizarComuna(l.comuna);
+      if (oficial && oficial !== l.comuna) {
+        cambios.push({ campo: "comuna", ahora: l.comuna, propuesto: oficial, por_que: "Nombre oficial de la comuna." });
       }
     }
 

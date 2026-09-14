@@ -52,3 +52,9 @@ test("detecta puntos de cotizador perdidos", () => {
 test("un cuerpo cortado o no JSON no revienta", () => {
   assert.deepEqual(diagnosticar([lead()], [msg('{"nombre": "Ana', "2026-09-10T10:00:00Z")], new Set()), []);
 });
+
+test("propone escribir la comuna con su nombre oficial", () => {
+  const r = diagnosticar([lead({ comuna: "las condes" })], [], new Set());
+  assert.deepEqual(r[0].cambios.map((c) => [c.campo, c.propuesto]), [["comuna", "Las Condes"]]);
+  assert.deepEqual(diagnosticar([lead({ comuna: "Ñuñoa" })], [], new Set()), []);
+});
