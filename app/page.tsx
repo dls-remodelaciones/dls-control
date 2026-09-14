@@ -1,50 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase, configurado } from "@/lib/supabase";
-import { telHref, waHref, config, type Clase, type Lead, type Senal } from "@/lib/negocio";
-import Conversacion from "./conversacion";
-import FichaDetalle from "./ficha";
+import type { Clase } from "@/lib/negocio";
 import NuevoLead from "./nuevo";
 import Avisos from "./avisos";
-import { aCsv } from "@/lib/exportar";
-import { coincide } from "@/lib/busqueda";
 import Estado from "./estado";
-
-type Proyecto = {
-  tipo: string;
-  comuna: string;
-  m2: number;
-  presupuesto: string;
-  tier: string;
-  fecha: string;
-};
-
-type Fila = Lead & {
-  id: string;
-  clasificacion: Clase;
-  score: number;
-  apto_para_llamar: boolean;
-  estado: string;
-  creado: string;
-  proyectos?: Proyecto[];
-  desglose?: Senal[];
-  proxima_accion?: string | null;
-  fecha_proxima_accion?: string | null;
-};
-
-type Tab = "hoy" | "bandeja" | "pipeline";
-
-/**
- * Tope de leads que se traen de una vez.
- *
- * Estaba en 200, y como la lista viene ordenada por puntaje, al pasar ese
- * número los que se caían eran los de puntaje MÁS BAJO — justo los que Daniel
- * exige que nunca desaparezcan (regla del 2026-09-11: entra todo, se
- * clasifica, no se descarta). Con 1.000 hay años de holgura a 40 leads al mes,
- * y si algún día se llena, la pantalla lo avisa en vez de esconderlo.
- */
-const TOPE_LEADS = 1000;
+import Ficha from "./ficha-tarjeta";
+import { Marco, Vacia, SinConexion, Aviso } from "./piezas";
+import { useLeads, TOPE_LEADS } from "./use-leads";
+import { leadsVisibles } from "@/lib/visibles";
+import type { Fila, Tab } from "./tipos";
+import { aCsv } from "@/lib/exportar";
 
 /** Etapas del pipeline, en orden. Los nombres internos son los de la columna `estado`. */
 const ETAPAS: [string, string][] = [
@@ -55,17 +22,7 @@ const ETAPAS: [string, string][] = [
   ["no_prospero", "No prosperó"],
 ];
 
-const CLASE_COLOR: Record<Clase, string> = {
-  A: "var(--color-a)",
-  B: "var(--color-b)",
-  C: "var(--color-c)",
-  D: "var(--color-line)",
-};
-
 export default function Pagina() {
-  const [filas, setFilas] = useState<Fila[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("hoy");
   /**
    * Lead que pidió abrir un aviso del celular (/?lead=<id>). Antes todos los
@@ -83,11 +40,7 @@ export default function Pagina() {
   const [filtro, setFiltro] = useState<Clase | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [sesion, setSesion] = useState<"revisando" | "dentro" | "fuera">("revisando");
-  /** lead_id → fecha del mensaje entrante que todavía espera respuesta. */
-  const [sinResponder, setSinResponder] = useState<Map<string, string>>(new Map());
   const [anotando, setAnotando] = useState(false);
-  /** Última lectura buena de la base: para saber si lo que se ve es de ahora. */
-  const [actualizado, setActualizado] = useState<Date | null>(null);
 
   // La base no le muestra nada a quien no tiene sesión (Row Level Security),
   // así que sin ingresar no tiene sentido ni intentar leer.
@@ -110,139 +63,8 @@ export default function Pagina() {
     if (sesion === "fuera") window.location.replace("/login");
   }, [sesion]);
 
-  const cargar = useCallback(async () => {
-    if (!supabase) {
-      setCargando(false);
-      return;
-    }
-    const { data, error } = await supabase
-      .from("leads")
-      .select("*")
-      .order("score", { ascending: false })
-      .order("creado", { ascending: false })
-      .limit(TOPE_LEADS);
-    if (error) setError(error.message);
-    else {
-      setError(null);
-      setFilas((data ?? []) as Fila[]);
-      setActualizado(new Date());
-    }
-
-    // Quién escribió y todavía no tiene respuesta. Va aparte del puntaje a
-    // propósito: alguien que te acaba de escribir es una obligación, no una
-    // clasificación. Un WhatsApp recién llegado no trae comuna ni presupuesto,
-    // así que puntúa bajo y quedaría enterrado junto a formularios abandonados
-    // hace semanas — siendo que es el lead más caliente que existe.
-    const { data: msg } = await supabase
-      .from("mensajes")
-      .select("lead_id, direccion, creado")
-      .eq("canal", "whatsapp")
-      .order("creado", { ascending: false })
-      .limit(500);
-
-    const ultimo = new Map<string, { direccion: string; creado: string }>();
-    for (const m of (msg ?? []) as { lead_id: string; direccion: string; creado: string }[]) {
-      // Vienen del más nuevo al más viejo: el primero de cada lead es el último.
-      if (m.lead_id && !ultimo.has(m.lead_id)) ultimo.set(m.lead_id, m);
-    }
-    // "Marcar como atendido": un cliente que escribió "gracias" no necesita respuesta,
-    // y sin esto quedaba para siempre arriba en "Te escribieron".
-    const { data: atendidos } = await supabase
-      .from("actividad")
-      .select("lead_id, creado")
-      .eq("tipo", "wa_atendido")
-      .order("creado", { ascending: false })
-      .limit(500);
-    const atendidoEn = new Map<string, string>();
-    for (const a of (atendidos ?? []) as { lead_id: string; creado: string }[]) {
-      if (!atendidoEn.has(a.lead_id)) atendidoEn.set(a.lead_id, a.creado);
-    }
-
-    const pendientes = new Map<string, string>();
-    for (const [id, m] of ultimo) {
-      const atendido = atendidoEn.get(id);
-      if (m.direccion === "entrante" && !(atendido && Date.parse(atendido) >= Date.parse(m.creado))) {
-        pendientes.set(id, m.creado);
-      }
-    }
-    setSinResponder(pendientes);
-
-    setCargando(false);
-  }, []);
-
-  useEffect(() => {
-    if (sesion !== "dentro") return;
-    void cargar();
-    const sb = supabase;
-    if (!sb) return;
-    // Realtime: cuando entra un lead por el webhook, la lista se actualiza sola.
-    const canal = sb
-      .channel("leads-vivo")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => void cargar())
-      .subscribe();
-    // Respaldo con consulta periódica. Revisado el 14-sep-2026: la publicación de
-    // Realtime de Supabase no incluía ninguna tabla, así que el canal de arriba
-    // nunca avisó nada y la lista NO se actualizaba sola, aunque lo pareciera.
-    // Cada 45 s con la pantalla a la vista, y al volver a la app.
-    const refrescar = () => {
-      if (document.visibilityState === "visible") void cargar();
-    };
-    const t = setInterval(refrescar, 45_000);
-    document.addEventListener("visibilitychange", refrescar);
-    return () => {
-      clearInterval(t);
-      document.removeEventListener("visibilitychange", refrescar);
-      void sb.removeChannel(canal);
-    };
-  }, [cargar, sesion]);
-
-  const conteos = useMemo(() => {
-    const listaA = filas.filter(
-      (f) => f.clasificacion === "A" && f.apto_para_llamar && f.estado === "contacto_inicial",
-    );
-    const b = filas.filter((f) => f.clasificacion === "B").length;
-    const c = filas.filter(
-      (f) =>
-        f.clasificacion === "C" ||
-        f.clasificacion === "D" ||
-        (f.clasificacion === "A" && !f.apto_para_llamar),
-    ).length;
-    return { a: listaA.length, b, c, listaA };
-  }, [filas]);
-
-  // Los que escribieron y esperan. Primero el que lleva más rato esperando:
-  // es a quien peor le queda el silencio, y a quien primero se le cierra la
-  // ventana de 24 horas de WhatsApp.
-  const esperando = useMemo(
-    () =>
-      filas
-        .filter((f) => sinResponder.has(f.id))
-        .sort((a, b) => Date.parse(sinResponder.get(a.id)!) - Date.parse(sinResponder.get(b.id)!)),
-    [filas, sinResponder],
-  );
-
-  // Recordatorios de la ficha que vencen hoy o ya vencieron, de leads todavía abiertos.
-  const paraHoy = useMemo(() => {
-    const finDeHoy = new Date();
-    finDeHoy.setHours(23, 59, 59, 999);
-    return filas
-      .filter(
-        (f) =>
-          f.fecha_proxima_accion &&
-          Date.parse(f.fecha_proxima_accion) <= finDeHoy.getTime() &&
-          f.estado !== "cerrado" &&
-          f.estado !== "no_prospero" &&
-          !sinResponder.has(f.id),
-      )
-      .sort((a, b) => Date.parse(a.fecha_proxima_accion!) - Date.parse(b.fecha_proxima_accion!));
-  }, [filas, sinResponder]);
-
-  // Cosas de hoy sin contar dos veces a quien está en más de una sección.
-  const totalHoy = useMemo(
-    () =>
-      new Set([...esperando.map((f) => f.id), ...paraHoy.map((f) => f.id), ...conteos.listaA.map((f) => f.id)]).size,
-    [esperando, paraHoy, conteos.listaA],
-  );
+  const { filas, cargando, error, sinResponder, actualizado, cargar, conteos, esperando, paraHoy, totalHoy } =
+    useLeads(sesion === "dentro");
 
   // Lo pendiente de hoy también afuera del panel: como número en el ícono de la
   // app instalada y en el título de la pestaña. Así se ve sin abrirla.
@@ -254,16 +76,15 @@ export default function Pagina() {
     else void nav.clearAppBadge?.().catch(() => undefined);
   }, [totalHoy, cargando]);
 
-  const visibles = useMemo(() => {
-    let v = filas;
-    // En "Hoy" no se repiten arriba y abajo: si está esperando respuesta, ya
-    // aparece en su propia sección.
-    if (tab === "hoy") v = conteos.listaA.filter((f) => !sinResponder.has(f.id) && !paraHoy.some((p) => p.id === f.id));
-    if (tab === "pipeline") v = filas.filter((f) => f.estado !== "contacto_inicial");
-    if (filtro) v = v.filter((f) => f.clasificacion === filtro);
-    if (tab === "bandeja" && busqueda.trim()) v = v.filter((f) => coincide(f as unknown as Record<string, unknown>, busqueda));
-    return v;
-  }, [filas, tab, filtro, busqueda, conteos.listaA, sinResponder, paraHoy]);
+  const visibles = leadsVisibles({
+    filas,
+    tab,
+    filtro,
+    busqueda,
+    listaA: conteos.listaA,
+    sinResponder,
+    paraHoy,
+  });
 
   /* Mientras se resuelve la sesión, la pantalla no parpadea con datos vacíos. */
   if (sesion !== "dentro") {
@@ -510,308 +331,4 @@ function descargarExcel(filas: Fila[]) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
-
-/* ── Piezas ─────────────────────────────────────────────────────────────── */
-
-function Marco({ children, alAnotar }: { children: React.ReactNode; alAnotar?: () => void }) {
-  return (
-    <div className="mx-auto max-w-[560px]">
-      <header
-        className="sticky top-0 z-20 border-b"
-        style={{ background: "var(--color-bg)", borderColor: "var(--color-line)" }}
-      >
-        <div className="flex h-14 items-center justify-between px-4">
-          <span className="text-base font-semibold tracking-[-0.02em]">
-            DLS{" "}
-            <span className="font-light" style={{ color: "var(--color-muted)" }}>
-              Control
-            </span>
-          </span>
-          {/* Anotar a mano a quien llego por telefono, Instagram o recomendado:
-              antes esa persona no entraba a ninguna parte. */}
-          {alAnotar && (
-            <button
-              onClick={alAnotar}
-              className="cursor-pointer border px-2.5 py-1.5 text-[12.5px] font-medium"
-              style={{ borderColor: "var(--color-line)" }}
-            >
-              + Anotar lead
-            </button>
-          )}
-        </div>
-      </header>
-      {children}
-    </div>
-  );
-}
-
-/** "hace 3 h", "hace 12 min". Para decir cuánto lleva esperando una respuesta. */
-function hace(iso: string): string {
-  const min = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
-  if (min < 60) return `hace ${min} min`;
-  const h = Math.round(min / 60);
-  if (h < 24) return `hace ${h} h`;
-  return `hace ${Math.round(h / 24)} d`;
-}
-
-function Ficha({
-  f,
-  esperaDesde,
-  recargar,
-  enfocado = false,
-}: {
-  f: Fila;
-  esperaDesde?: string;
-  recargar: () => void;
-  /** Viene de un aviso del celular: se lleva a la vista y se abre. */
-  enfocado?: boolean;
-}) {
-  // La conversación se carga solo cuando se abre: son decenas de fichas en
-  // pantalla y no tiene sentido pedirle a la base el historial de todas.
-  // Si está esperando respuesta, se abre sola: para eso está ahí.
-  const [conversando, setConversando] = useState(Boolean(esperaDesde) || (enfocado && Boolean(f.telefono)));
-  const [viendoFicha, setViendoFicha] = useState(enfocado && !f.telefono);
-  const tarjeta = useRef<HTMLLIElement>(null);
-  // Cambios escritos en la ficha y no guardados: cerrarla sin querer los perdía.
-  const fichaSucia = useRef(false);
-  const marcarSucia = useCallback((s: boolean) => {
-    fichaSucia.current = s;
-  }, []);
-  function alternarFicha() {
-    if (viendoFicha && fichaSucia.current && !window.confirm("Tienes cambios sin guardar en la ficha. ¿Cerrarla igual y perderlos?")) return;
-    if (viendoFicha) fichaSucia.current = false;
-    setViendoFicha((v) => !v);
-  }
-  useEffect(() => {
-    if (enfocado) tarjeta.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [enfocado]);
-
-  /**
-   * Tocar "Llamar" deja rastro en la actividad del lead. Así el aviso de "leads
-   * A sin llamar" no insiste con alguien a quien ya se llamó, y el historial de
-   * la ficha muestra cuándo. No espera la respuesta: la llamada sale igual.
-   */
-  function registrarLlamada() {
-    void supabase?.from("actividad").insert({ lead_id: f.id, tipo: "llamada", quien: "panel" }).then(({ error }) => {
-      if (error) console.warn("No se pudo registrar la llamada:", error.message);
-    });
-  }
-  const tipo = f.tipo_proyecto ? config().tipos[f.tipo_proyecto]?.label : "";
-  const sub = [tipo, f.superficie_m2 ? `${f.superficie_m2} m²` : "", f.rango_presupuesto]
-    .filter(Boolean)
-    .join(" · ");
-  // El proyecto principal ya se muestra arriba; estos son los demas que pidio.
-  const otros = (f.proyectos ?? []).filter(
-    (p) => !(p.tipo === f.tipo_proyecto && p.comuna === f.comuna && p.m2 === f.superficie_m2),
-  );
-  const color = CLASE_COLOR[f.clasificacion] ?? "var(--color-c)";
-
-  return (
-    <li
-      ref={tarjeta}
-      className="scroll-mt-20 border"
-      style={{
-        background: "var(--color-surface)",
-        borderColor: "var(--color-line)",
-        borderLeft: `3px solid ${color}`,
-        boxShadow: enfocado ? "0 0 0 2px var(--color-brand)" : undefined,
-      }}
-    >
-      <div className="flex items-start gap-2.5 px-3.5 py-3">
-        <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-semibold tracking-[-0.01em] break-words">
-            {f.nombre}
-            {f.comuna && (
-              <span className="font-light" style={{ color: "var(--color-muted)" }}>
-                {" · "}
-                {f.comuna}
-              </span>
-            )}
-          </div>
-          {sub && (
-            <div className="mt-0.5 text-[12.5px] break-words" style={{ color: "var(--color-muted)" }}>
-              {sub}
-            </div>
-          )}
-          {/* Una persona puede pedir varias cosas. Arriba va la principal — la de
-              mayor presupuesto — y aquí las demás, para no llamar a medias. */}
-          {otros.length > 0 && (
-            <div className="mt-1.5 text-[12px]" style={{ color: "var(--color-muted)" }}>
-              <span style={{ color: "var(--color-b)" }}>
-                También pidió {otros.length === 1 ? "otro proyecto" : `otros ${otros.length} proyectos`}:
-              </span>{" "}
-              {otros
-                .map((p) =>
-                  [
-                    p.tipo ? config().tipos[p.tipo as keyof ReturnType<typeof config>["tipos"]]?.label ?? p.tipo : "",
-                    p.m2 ? `${p.m2} m²` : "",
-                    p.comuna,
-                  ]
-                    .filter(Boolean)
-                    .join(" "),
-                )
-                .join(" · ")}
-            </div>
-          )}
-        </div>
-        <div className="shrink-0 text-right">
-          <span
-            className="tabular rounded-[2px] px-1.5 py-0.5 text-[12px] font-bold"
-            style={{ fontFamily: "var(--font-space-mono)", color }}
-          >
-            {f.clasificacion} {f.score}
-          </span>
-          {esperaDesde ? (
-            <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-a)" }}>
-              {hace(esperaDesde)}
-            </div>
-          ) : (
-            // Antigüedad: un A de hace 5 días no es lo mismo que uno de hace una hora.
-            f.creado && (
-              <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-muted)" }}>
-                entró {hace(f.creado)}
-              </div>
-            )
-          )}
-          {f.fecha_proxima_accion && (
-            <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-b)" }}>
-              {new Date(f.fecha_proxima_accion).toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Máximo 3 acciones. Todo lo demás, detrás de Ver ficha. */}
-      <div className="flex border-t" style={{ borderColor: "var(--color-linesoft)" }}>
-        {f.telefono ? (
-          <a
-            href={telHref(f)}
-            onClick={registrarLlamada}
-            className="flex-1 border-r py-2.5 text-center text-[12.5px] font-medium"
-            style={{ borderColor: "var(--color-linesoft)" }}
-          >
-            Llamar
-          </a>
-        ) : (
-          <span
-            className="flex-1 border-r py-2.5 text-center text-[12.5px]"
-            style={{ borderColor: "var(--color-linesoft)", color: "var(--color-muted)" }}
-          >
-            Sin teléfono
-          </span>
-        )}
-        {f.telefono && (
-          <button
-            onClick={() => setConversando((v) => !v)}
-            className="flex-1 cursor-pointer border-r py-2.5 text-center text-[12.5px] font-medium"
-            style={{
-              borderColor: "var(--color-linesoft)",
-              color: conversando ? "var(--color-a)" : undefined,
-            }}
-          >
-            {conversando ? "Cerrar chat" : "WhatsApp"}
-          </button>
-        )}
-        <button
-          onClick={alternarFicha}
-          className="flex-1 cursor-pointer py-2.5 text-center text-[12.5px] font-medium"
-          style={{ color: viendoFicha ? "var(--color-a)" : undefined }}
-        >
-          {viendoFicha ? "Cerrar ficha" : "Ver ficha"}
-        </button>
-      </div>
-
-      {conversando && f.telefono && (
-        <Conversacion
-          leadId={f.id}
-          telefono={f.telefono}
-          alternativa={waHref(f)}
-          esperando={Boolean(esperaDesde)}
-          alAtender={() => {
-            setConversando(false);
-            recargar();
-          }}
-        />
-      )}
-
-      {viendoFicha && <FichaDetalle f={f} alGuardar={recargar} alCambiar={marcarSucia} />}
-    </li>
-  );
-}
-
-function Vacia({ tab, enNutricion }: { tab: Tab; enNutricion: number }) {
-  const marco = {
-    borderColor: "var(--color-line)",
-    background: "var(--color-surface)",
-  };
-  if (tab === "hoy") {
-    return (
-      <div className="border border-dashed px-5 py-8 text-center" style={marco}>
-        <h2 className="text-[15px] font-semibold">Nadie califica para llamar hoy</h2>
-        <p className="mt-2 text-[13px]" style={{ color: "var(--color-muted)" }}>
-          No es un error: es que ningún lead llegó a {config().umbrales.A} puntos con teléfono válido.
-        </p>
-        <ul className="mt-3 space-y-1.5 text-left text-[13px]" style={{ color: "var(--color-muted)" }}>
-          {enNutricion > 0 && <li>· Tienes {enNutricion} en nutrición a pocos puntos de A.</li>}
-          <li>· Publica una obra terminada con el link del embudo en la bio.</li>
-          <li>· Reactiva por WhatsApp a los que quedaron en “explorando”.</li>
-        </ul>
-      </div>
-    );
-  }
-  return (
-    <div className="border border-dashed px-5 py-8 text-center" style={marco}>
-      <h2 className="text-[15px] font-semibold">
-        {tab === "pipeline" ? "Nada en el pipeline todavía" : "Sin leads todavía"}
-      </h2>
-      <p className="mt-2 text-[13px]" style={{ color: "var(--color-muted)" }}>
-        {tab === "pipeline"
-          ? "Cuando muevas un lead a contactado o visita, aparece acá."
-          : "Los leads del cotizador, el chatbot y el correo aparecen aquí solos."}
-      </p>
-    </div>
-  );
-}
-
-/**
- * Franja de "sin conexión". En una obra con mala señal el panel seguía mostrando
- * la lista de hace una hora como si fuera la de ahora, y un mensaje enviado
- * fallaba sin que se entendiera por qué.
- */
-function SinConexion() {
-  const [enLinea, setEnLinea] = useState(true);
-  useEffect(() => {
-    const actualizar = () => setEnLinea(navigator.onLine);
-    actualizar();
-    window.addEventListener("online", actualizar);
-    window.addEventListener("offline", actualizar);
-    return () => {
-      window.removeEventListener("online", actualizar);
-      window.removeEventListener("offline", actualizar);
-    };
-  }, []);
-  if (enLinea) return null;
-  return (
-    <div className="border-b px-4 py-2 text-[12.5px] font-medium" style={{ background: "var(--color-warm)", borderColor: "var(--color-line)" }} role="status">
-      Sin conexión: lo que ves puede estar desactualizado y los mensajes no van a salir hasta que vuelva la señal.
-    </div>
-  );
-}
-
-function Aviso({ titulo, detalle }: { titulo: string; detalle: string }) {
-  return (
-    <div
-      className="mx-4 my-4 border px-3.5 py-3 text-[13px]"
-      style={{
-        borderColor: "var(--color-a)",
-        background: "color-mix(in srgb, var(--color-a) 10%, transparent)",
-      }}
-    >
-      <b className="font-semibold">{titulo}</b>
-      <p className="mt-1" style={{ color: "var(--color-muted)" }}>
-        {detalle}
-      </p>
-    </div>
-  );
 }
