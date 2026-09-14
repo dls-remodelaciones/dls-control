@@ -18,6 +18,25 @@ export function diasSinLeads(ultimoCreado: string | null, ahora: Date): number |
   return Number.isFinite(t) ? Math.floor((ahora.getTime() - t) / DIA) : null;
 }
 
+/** Horas desde que entró un lead A a partir de las cuales cuenta como "se está enfriando". */
+export const HORAS_A_SIN_LLAMAR = 48;
+
+/**
+ * Leads A listos para llamar que nadie movió del estado inicial después de 48 h.
+ * Un lead A es el más valioso que entra, y cada día que pasa sin llamada la
+ * probabilidad de cerrarlo baja: si el aviso de "lead nuevo" se pasó por alto,
+ * este es el segundo aviso.
+ */
+export function aSinLlamar<T extends { clasificacion: string | null; apto_para_llamar: boolean | null; estado: string | null; creado: string }>(
+  leads: T[],
+  ahora: Date,
+): T[] {
+  const limite = ahora.getTime() - HORAS_A_SIN_LLAMAR * 3_600_000;
+  return leads.filter(
+    (l) => l.clasificacion === "A" && l.apto_para_llamar && l.estado === "contacto_inicial" && Date.parse(l.creado) <= limite,
+  );
+}
+
 /** Estado del nombre visible del número de WhatsApp según Meta. */
 export interface EstadoNombre {
   nombre: string; // verified_name: lo que ven hoy los clientes

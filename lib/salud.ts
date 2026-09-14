@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { consultarWhois, diasHasta, leerVencimiento, DIAS_AVISO, DOMINIO } from "@/lib/dominio";
 import { DIAS_SILENCIO, diasSinLeads, type EstadoNombre } from "@/lib/novedades";
 import { CLAVE as CLAVE_CORREOS, limite, proximoReinicio, vigente, type Uso } from "@/lib/correos";
 
@@ -203,6 +204,25 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
     }
   } catch (e) {
     anotar("Sitio web", false, `No se pudo abrir dlsremodelaciones.cl: ${e instanceof Error ? e.message : e}`);
+  }
+
+  // 5b. Dominio: si vence, se apagan el sitio y el correo contacto@.
+  const whois = await consultarWhois();
+  const vence = whois ? leerVencimiento(whois) : null;
+  if (vence) {
+    const dias = diasHasta(vence, new Date());
+    anotar(
+      "Dominio",
+      dias > DIAS_AVISO,
+      dias > DIAS_AVISO
+        ? `${DOMINIO} vence el ${vence} (en ${dias} días).`
+        : dias >= 0
+          ? `${DOMINIO} vence el ${vence}: quedan ${dias} días. Renuévalo en nic.cl o se apagan el sitio y el correo.`
+          : `${DOMINIO} VENCIÓ el ${vence}. Renuévalo en nic.cl de inmediato.`,
+    );
+  } else {
+    // Sin respuesta de NIC no se alarma: sería una falsa alarma diaria. Queda anotado.
+    anotar("Dominio", true, "No se pudo consultar a NIC Chile hoy; se reintenta mañana.");
   }
 
   // 6. Avisos: si no hay ningún dispositivo suscrito, una falla no le llega a nadie.

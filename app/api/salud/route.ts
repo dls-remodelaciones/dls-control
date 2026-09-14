@@ -3,7 +3,7 @@ import { revisarSalud } from "@/lib/salud";
 import { avisar } from "@/lib/avisos";
 import { quienLlama } from "@/lib/cron";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { cambioDeNombre, type EstadoNombre } from "@/lib/novedades";
+import { aSinLlamar, cambioDeNombre, type EstadoNombre } from "@/lib/novedades";
 
 /**
  * Revisión diaria del circuito de leads (cron de Vercel, ver `vercel.json`).
@@ -54,9 +54,34 @@ export async function GET(req: NextRequest) {
     if (novedadNombre) await avisar({ ...novedadNombre, url: "/", tag: "meta-nombre" });
   }
 
+  // Leads A que se están enfriando: segundo aviso, cada mañana, mientras sigan ahí.
+  let enfriandose: string[] = [];
+  if (db) {
+    const { data: aes } = await db
+      .from("leads")
+      .select("nombre, clasificacion, apto_para_llamar, estado, creado")
+      .eq("clasificacion", "A")
+      .eq("estado", "contacto_inicial")
+      .limit(500);
+    const lista = aSinLlamar((aes ?? []) as { nombre: string | null; clasificacion: string | null; apto_para_llamar: boolean | null; estado: string | null; creado: string }[], new Date());
+    enfriandose = lista.map((l) => l.nombre || "Sin nombre");
+    if (lista.length && debeAvisar) {
+      await avisar({
+        titulo:
+          lista.length === 1
+            ? "1 lead A lleva más de 2 días sin llamada"
+            : `${lista.length} leads A llevan más de 2 días sin llamada`,
+        cuerpo: `${enfriandose.slice(0, 5).join(", ")}${lista.length > 5 ? "…" : ""}. Si ya los llamaste, muévelos de estado en el panel.`,
+        url: "/",
+        tag: "a-sin-llamar",
+      });
+    }
+  }
+
   return NextResponse.json({
     ok: fallas.length === 0,
     chequeos,
+    a_sin_llamar: enfriandose,
     nombre_whatsapp: nombreMeta,
     novedad_nombre: novedadNombre,
     aviso,
