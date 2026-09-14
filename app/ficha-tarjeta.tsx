@@ -254,6 +254,7 @@ export default function Ficha({
           <ResponderDM
             leadId={f.id}
             canal={responder.texto.replace("Responder en ", "")}
+            esperaDesde={esperaDesde}
             alEnviar={recargar}
           />
           <div className="px-3.5 pb-3 text-[12px]" style={{ color: "var(--color-muted)" }}>

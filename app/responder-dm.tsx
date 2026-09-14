@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { pedirJson } from "@/lib/pedir";
+import { ventanaAbierta } from "@/lib/ventana";
 
 /**
  * Contestar un DM de Instagram o Messenger sin salir de la ficha del lead.
@@ -19,17 +20,26 @@ import { pedirJson } from "@/lib/pedir";
 export default function ResponderDM({
   leadId,
   canal,
+  esperaDesde,
   alEnviar,
 }: {
   leadId: string;
   /** "Instagram" o "Messenger", para hablarle a Daniel de lo que ve. */
   canal: string;
+  /** Último mensaje de la persona, para saber si la ventana sigue abierta. */
+  esperaDesde?: string;
   alEnviar: () => void;
 }) {
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
+
+  // Se sabe acá y no recién al enviar: escribir una respuesta completa para que
+  // después aparezca que Meta ya no la acepta es la peor forma de enterarse.
+  // Sin fecha del último mensaje no se asume nada; el servidor valida igual.
+  const ventana = esperaDesde ? ventanaAbierta(esperaDesde) : null;
+  const cerrada = ventana !== null && !ventana.abierta;
 
   async function enviar() {
     const cuerpo = texto.trim();
@@ -60,8 +70,23 @@ export default function ResponderDM({
     alEnviar();
   }
 
+  if (cerrada) {
+    return (
+      <div className="border-t px-3.5 py-3 text-[13px]" style={{ borderColor: "var(--color-linesoft)" }}>
+        Pasaron más de 24 horas desde su mensaje, así que {canal} ya no deja responder desde acá.
+        Hay que escribirle desde la aplicación; cuando conteste, la ventana se abre de nuevo.
+      </div>
+    );
+  }
+
   return (
     <div className="border-t px-3.5 py-3" style={{ borderColor: "var(--color-linesoft)" }}>
+      {ventana && ventana.horas_restantes <= 4 && (
+        <p className="mb-2 text-[12.5px]" style={{ color: "var(--color-a)" }}>
+          Queda{ventana.horas_restantes === 1 ? "" : "n"} {ventana.horas_restantes} h para responderle
+          por {canal}.
+        </p>
+      )}
       <label htmlFor={`dm-${leadId}`} className="sr-only">
         Responder por {canal}
       </label>

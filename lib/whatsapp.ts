@@ -15,7 +15,10 @@
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
-export const VENTANA_HORAS = 24;
+// La ventana de 24 horas es la misma para los tres canales de Meta y se calcula
+// en lib/ventana.ts, que también usa la pantalla. Se reexporta para no cambiar
+// los import que ya existen.
+export { VENTANA_HORAS, ventanaAbierta } from "@/lib/ventana";
 
 export type Envio =
   | { ok: true; id_mensaje: string }
@@ -213,27 +216,6 @@ export function plantillaRellena(cuerpo: string, valores: string[]): string {
 export function whatsappConfigurado(): boolean {
   const { token, numeroId } = credenciales();
   return Boolean(token && numeroId);
-}
-
-/**
- * ¿Se puede escribir texto libre a esta persona ahora?
- *
- * `ultimoEntrante` es la fecha del último mensaje que ELLA nos mandó. Si no hay
- * ninguno, la ventana nunca se abrió: Meta rechazaría el envío.
- */
-export function ventanaAbierta(ultimoEntrante: string | null | undefined): {
-  abierta: boolean;
-  horas_restantes: number;
-} {
-  if (!ultimoEntrante) return { abierta: false, horas_restantes: 0 };
-  const t = Date.parse(ultimoEntrante);
-  if (!Number.isFinite(t)) return { abierta: false, horas_restantes: 0 };
-  const transcurridas = (Date.now() - t) / 3_600_000;
-  const restantes = VENTANA_HORAS - transcurridas;
-  return {
-    abierta: restantes > 0,
-    horas_restantes: restantes > 0 ? Math.round(restantes * 10) / 10 : 0,
-  };
 }
 
 /** Envía un texto libre. Solo funciona con la ventana abierta. */

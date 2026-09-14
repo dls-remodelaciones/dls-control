@@ -9,6 +9,7 @@ import { CLAVE as CLAVE_ERRORES, UMBRAL_24H, resumen as resumenErrores, type Err
 import { consultarWhois, diasHasta, leerVencimiento, DIAS_AVISO, DOMINIO } from "@/lib/dominio";
 import { DIAS_SILENCIO, diasSinLeads, type EstadoNombre } from "@/lib/novedades";
 import { CLAVE as CLAVE_CORREOS, limite, proximoReinicio, vigente, type Uso } from "@/lib/correos";
+import { revisarForma } from "@/lib/dm";
 
 /**
  * Revisión de salud de todo el circuito de leads.
@@ -30,6 +31,8 @@ export interface Chequeo {
 }
 
 const GRAPH = "https://graph.facebook.com/v23.0";
+/** Instagram Login no habla por graph.facebook.com (ver lib/dm.ts). */
+const GRAPH_IG = "https://graph.instagram.com/v23.0";
 const SITIO = "https://www.dlsremodelaciones.cl";
 const PANEL = "https://dls-control.vercel.app";
 const PLAZO_MS = 10_000;
@@ -48,6 +51,8 @@ const CLAVES = [
   "IG_APP_SECRET",
   "IG_VERIFY_TOKEN",
   "FB_VERIFY_TOKEN",
+  // Sin este no se puede responder un DM de Instagram desde el panel.
+  "IG_ACCESS_TOKEN",
   "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
   "VAPID_PRIVATE_KEY",
   "VAPID_SUBJECT",
@@ -257,6 +262,34 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
         false,
         `No se pudo probar el webhook: ${e instanceof Error ? e.message : e}`,
       );
+    }
+  }
+
+  // 4c. El identificador de acceso de Instagram, que es lo que permite RESPONDER
+  //     un DM desde el panel. Los de Instagram Login caducan (unos 60 días) y el
+  //     día que eso pase no avisa nadie: el webhook sigue recibiendo igual, y el
+  //     fallo aparece recién cuando Daniel intenta contestarle a un cliente.
+  const tokenIG = env("IG_ACCESS_TOKEN");
+  if (tokenIG) {
+    const forma = revisarForma(tokenIG);
+    if (forma) {
+      anotar("Instagram: responder DM", false, forma);
+    } else {
+      try {
+        const r = await traer(`${GRAPH_IG}/me?fields=id,username`, {
+          headers: { Authorization: `Bearer ${tokenIG}` },
+        });
+        const j = (await r.json()) as { username?: string; error?: { message?: string } };
+        anotar(
+          "Instagram: responder DM",
+          r.ok,
+          r.ok
+            ? `Identificador vivo, cuenta @${j.username ?? "?"}.`
+            : `Meta lo rechazó (${j.error?.message ?? r.status}). No se pueden responder los DM hasta generar otro en Casos de uso → Instagram.`,
+        );
+      } catch (e) {
+        anotar("Instagram: responder DM", false, `No se pudo consultar a Meta: ${e instanceof Error ? e.message : e}`);
+      }
     }
   }
 
