@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { telHref, waHref, config } from "@/lib/negocio";
+import { comoResponder } from "@/lib/canales";
 import Conversacion from "./conversacion";
 import FichaDetalle from "./ficha";
 import { CLASE_COLOR, type Fila } from "./tipos";
@@ -76,6 +77,8 @@ export default function Ficha({
     (p) => !(p.tipo === f.tipo_proyecto && p.comuna === f.comuna && p.m2 === f.superficie_m2),
   );
   const color = CLASE_COLOR[f.clasificacion] ?? "var(--color-c)";
+  // Sin teléfono, pero escribió por una red donde sí se le puede contestar.
+  const responder = f.telefono ? null : comoResponder(f.canal);
 
   return (
     <li
@@ -162,6 +165,19 @@ export default function Ficha({
             style={{ borderColor: "var(--color-linesoft)" }}
           >
             Llamar
+          </a>
+        ) : responder ? (
+          // Escribió por Instagram o Messenger y no dejó teléfono: la
+          // conversación existe, pero en la aplicación de Meta. Se lleva allá
+          // en vez de dejar un botón muerto.
+          <a
+            href={responder.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 border-r py-2.5 text-center text-[12.5px] font-medium"
+            style={{ borderColor: "var(--color-linesoft)" }}
+          >
+            {responder.texto}
           </a>
         ) : (
           <span

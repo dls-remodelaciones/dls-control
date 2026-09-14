@@ -142,6 +142,22 @@ Pendiente: `IG_ACCESS_TOKEN`/`FB_PAGE_ACCESS_TOKEN` (identificadores de acceso) 
 guardaron todavía; se generan de nuevo en el panel de Meta el día que se implemente responder
 DM desde el panel.
 
+## Deudas conocidas
+
+- **La versión de la Graph API está repartida**: `lib/salud.ts` usa v23.0 y `lib/whatsapp.ts`
+  y `lib/adjuntos.ts` siguen en v21.0. Unificarlas exige probar antes que los endpoints de
+  ENVÍO (`/messages`) respondan igual en v23, y eso no se puede hacer a ciegas: si v23 cambiara
+  algo, los mensajes a clientes dejarían de salir. El token de `.env.local` está vencido (401),
+  así que la prueba hay que hacerla con el de producción. Meta deprecia cada versión unos 2
+  años después de publicarla.
+- **Nada verifica el teléfono publicado en Instagram y Messenger.** La revisión diaria ya
+  compara el número del sitio con el de Meta, pero el de los perfiles de esas redes se
+  configura fuera y necesitaría `FB_PAGE_ACCESS_TOKEN`, que todavía no se guardó.
+- **Los crons se autentican por user-agent** mientras no exista `CRON_SECRET` (ver `lib/cron.ts`,
+  que ya soporta ambos y tiene pruebas). Al crear esa variable en Vercel, el cron pasa a exigir
+  `Authorization: Bearer`. Conviene hacerlo mirando: si algo saliera mal, el primero en quedar
+  bloqueado sería `/api/salud`, que es justamente el que avisa cuando algo falla.
+
 ## Pruebas
 
 `npm test` (node:test con tsx). También corren en GitHub Actions en cada push
