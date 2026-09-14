@@ -17,7 +17,7 @@ departamentos completos.
 
 - Sitio: `https://dlsremodelaciones.cl`
 - Correo del negocio: `contacto@dlsremodelaciones.cl` (Zoho, con reenvío automático **ya funcionando** a `dls.lehmann@gmail.com`)
-- WhatsApp: `+56 9 8229 1198` (número personal; WhatsApp Business pendiente de activar)
+- WhatsApp y teléfono: `+56 9 5638 1974` — único número del negocio desde el 2026-09-13
 - Instagram: cuenta activa del negocio (aún sin API)
 
 ### 1.2 Qué existe hoy y funciona
@@ -461,8 +461,8 @@ es lento y puede corromper el proyecto.
 
 ### Correcciones a la especificación (comprobadas, no supuestas)
 
-- **WhatsApp:** la §1.2 dice `+56 9 8229 1198`. El número correcto es **`+56 9 9138 0205`**,
-  confirmado por Daniel y ya corregido y publicado en el sitio.
+- **WhatsApp:** la §1.2 dice `+56 9 8229 1198`. Desde el 2026-09-13 el único número del negocio es
+  **`+56 9 5638 1974`** (WhatsApp y llamadas), confirmado por Daniel y publicado en el sitio.
 - **Carpeta web:** es `PAGINA WEB CLAUDE`, no `PAGINA WEB`.
 - **Chatbot:** la §1.2 lo describe con 6 preguntas terminando en WhatsApp. Ya es **v2**: 10 pasos,
   correo y teléfono obligatorios, pregunta plazo y propiedad, y manda ficha `[LEAD]` estructurada.
