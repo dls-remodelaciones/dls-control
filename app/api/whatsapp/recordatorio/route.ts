@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { avisar } from "@/lib/avisos";
 import { quienLlama } from "@/lib/cron";
-import { porVencer, type MensajeWA } from "@/lib/recordatorio";
+import { porVencer, accionesProximas, type AccionConFecha, type MensajeWA } from "@/lib/recordatorio";
 import { VENTANA_HORAS } from "@/lib/whatsapp";
 
 /**
- * Cada hora (cron en `vercel.json`): avisa al celular por cada WhatsApp sin
+ * Cada hora (cron en `vercel.json`): avisa por los recordatorios de la ficha que
+ * caen en la hora siguiente, y por cada WhatsApp sin
  * responder al que le quedan menos de 3 horas de ventana. La regla vive en
  * `lib/recordatorio.ts`. Acceso: el cron o Daniel con sesión (`lib/cron.ts`);
  * Daniel mirando no dispara avisos.
@@ -30,7 +31,38 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ ok: false, error: "consulta", detalle: error.message }, { status: 500 });
 
   const lista = porVencer((data ?? []) as MensajeWA[]);
-  if (!lista.length) return NextResponse.json({ ok: true, por_vencer: 0 });
+
+  // Recordatorios que Daniel se puso en la ficha y caen en la hora siguiente.
+  const ahora = Date.now();
+  const { data: conFecha } = await db
+    .from("leads")
+    .select("id, nombre, proxima_accion, fecha_proxima_accion")
+    .gt("fecha_proxima_accion", new Date(ahora).toISOString())
+    .lte("fecha_proxima_accion", new Date(ahora + 3_600_000).toISOString())
+    .limit(100);
+  const acciones = accionesProximas((conFecha ?? []) as AccionConFecha[], ahora);
+
+  let enviados = 0;
+  if (cron) {
+    for (const a of acciones) {
+      const hora = new Date(a.fecha_proxima_accion!).toLocaleTimeString("es-CL", {
+        timeZone: "America/Santiago",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const r = await avisar({
+        titulo: `A las ${hora}: ${a.nombre || "un lead"}`,
+        cuerpo: a.proxima_accion || "Tienes una próxima acción anotada para este lead.",
+        url: "/",
+        tag: `accion-${a.id}`,
+      });
+      enviados += r.enviados;
+    }
+  }
+
+  if (!lista.length) {
+    return NextResponse.json({ ok: true, por_vencer: 0, acciones: acciones.length, avisos_enviados: enviados });
+  }
 
   const { data: leads } = await db
     .from("leads")
@@ -38,7 +70,6 @@ export async function GET(req: NextRequest) {
     .in("id", lista.map((l) => l.lead_id));
   const nombreDe = new Map((leads ?? []).map((l) => [l.id as string, (l.nombre as string) || `+${l.telefono}`]));
 
-  let enviados = 0;
   if (cron) {
     for (const l of lista) {
       const r = await avisar({
@@ -54,6 +85,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     por_vencer: lista.length,
+    acciones: acciones.length,
     leads: lista.map((l) => ({ nombre: nombreDe.get(l.lead_id) ?? "", horas_restantes: l.horas_restantes })),
     avisos_enviados: enviados,
   });

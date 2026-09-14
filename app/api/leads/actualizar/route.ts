@@ -78,6 +78,10 @@ export async function POST(req: NextRequest) {
   if (tiene("financiamiento")) fusion.financiamiento = txt(body.financiamiento, 40) || null;
   if (tiene("nota_interna")) fusion.nota_interna = txt(body.nota_interna, 2000) || null;
   if (tiene("proxima_accion")) fusion.proxima_accion = txt(body.proxima_accion, 200) || null;
+  if (tiene("fecha_proxima_accion")) {
+    const t = Date.parse(txt(body.fecha_proxima_accion, 40));
+    fusion.fecha_proxima_accion = Number.isFinite(t) ? new Date(t).toISOString() : null;
+  }
   if (tiene("motivo_no_prospero")) fusion.motivo_no_prospero = txt(body.motivo_no_prospero, 300) || null;
   if (tiene("etiqueta")) fusion.etiqueta = txt(body.etiqueta, 40) || null;
 
@@ -114,6 +118,7 @@ export async function POST(req: NextRequest) {
       financiamiento: fusion.financiamiento,
       nota_interna: fusion.nota_interna,
       proxima_accion: fusion.proxima_accion,
+      fecha_proxima_accion: fusion.fecha_proxima_accion ?? null,
       motivo_no_prospero: fusion.motivo_no_prospero,
       etiqueta: fusion.etiqueta,
       estado: fusion.estado,

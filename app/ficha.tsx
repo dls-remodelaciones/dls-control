@@ -56,10 +56,20 @@ export type DatosFicha = {
   estado?: string;
   nota_interna?: string | null;
   proxima_accion?: string | null;
+  fecha_proxima_accion?: string | null;
   score?: number;
   clasificacion?: string;
   desglose?: Senal[];
 };
+
+/** ISO guardado → valor de <input type="datetime-local"> en la hora del teléfono. */
+function aLocal(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}T${p(t.getHours())}:${p(t.getMinutes())}`;
+}
 
 export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () => void }) {
   const [d, setD] = useState({
@@ -75,6 +85,7 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
     estado: f.estado ?? "contacto_inicial",
     nota_interna: f.nota_interna ?? "",
     proxima_accion: f.proxima_accion ?? "",
+    fecha_proxima_accion: aLocal(f.fecha_proxima_accion),
   });
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -99,7 +110,12 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
     const r = await fetch("/api/leads/actualizar", {
       method: "POST",
       headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ id: f.id, ...d }),
+      // La fecha viaja en ISO: el input da hora local sin zona, y el servidor la guardaría corrida.
+      body: JSON.stringify({
+        id: f.id,
+        ...d,
+        fecha_proxima_accion: d.fecha_proxima_accion ? new Date(d.fecha_proxima_accion).toISOString() : "",
+      }),
     });
     const j = await r.json();
     setGuardando(false);
@@ -212,8 +228,20 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
             style={campo}
             value={d.proxima_accion}
             onChange={set("proxima_accion")}
-            placeholder="Ej: llamar el jueves a las 10"
+            placeholder="Ej: llamar para coordinar la visita"
           />
+        </label>
+
+        <label className="col-span-2 text-[11px]" style={{ color: "var(--color-muted)" }}>
+          Recordármelo el
+          <input
+            type="datetime-local"
+            className={clase}
+            style={campo}
+            value={d.fecha_proxima_accion}
+            onChange={set("fecha_proxima_accion")}
+          />
+          <span className="mt-0.5 block">Te llega un aviso al celular hasta una hora antes.</span>
         </label>
 
         <label className="col-span-2 text-[11px]" style={{ color: "var(--color-muted)" }}>

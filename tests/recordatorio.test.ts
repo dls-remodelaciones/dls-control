@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { porVencer, type MensajeWA } from "../lib/recordatorio";
+import { porVencer, accionesProximas, type MensajeWA } from "../lib/recordatorio";
 
 const AHORA = Date.parse("2026-09-14T12:00:00Z");
 const haceHoras = (h: number) => new Date(AHORA - h * 3_600_000).toISOString();
@@ -46,4 +46,19 @@ test("la franja de una hora se toca exactamente una vez con el cron cada hora", 
 
 test("mensajes sin lead se ignoran", () => {
   assert.equal(porVencer([{ lead_id: null, direccion: "entrante", cuerpo: "x", creado: haceHoras(21.5) }], AHORA).length, 0);
+});
+
+test("próximas acciones: avisa por las que caen en la hora siguiente, una sola vez", () => {
+  const base = Date.parse("2026-09-14T13:00:00Z");
+  const a = (id: string, fecha: string | null) => ({ id, nombre: id, proxima_accion: "llamar", fecha_proxima_accion: fecha });
+  const lista = [
+    a("pasada", "2026-09-14T12:59:00Z"),
+    a("en-30-min", "2026-09-14T13:30:00Z"),
+    a("justo-1h", "2026-09-14T14:00:00Z"),
+    a("en-2h", "2026-09-14T15:00:00Z"),
+    a("sin-fecha", null),
+  ];
+  assert.deepEqual(accionesProximas(lista, base).map((x) => x.id), ["en-30-min", "justo-1h"]);
+  // La corrida siguiente no repite los mismos.
+  assert.deepEqual(accionesProximas(lista, base + 3_600_000).map((x) => x.id), ["en-2h"]);
 });

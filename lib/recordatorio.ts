@@ -48,3 +48,25 @@ export function porVencer(mensajes: MensajeWA[], ahora = Date.now()): PorVencer[
   }
   return salida;
 }
+
+/* ── Próximas acciones con fecha ─────────────────────────────────────────── */
+
+export interface AccionConFecha {
+  id: string;
+  nombre: string | null;
+  proxima_accion: string | null;
+  fecha_proxima_accion: string | null;
+}
+
+/**
+ * Recordatorios que Daniel se puso en la ficha ("llamar el jueves a las 10").
+ * El cron corre cada hora en punto, así que se avisa por los que caen dentro
+ * de la HORA SIGUIENTE: mejor unos minutos antes que tarde. Cada recordatorio
+ * cae en una sola de esas franjas, así que avisa una sola vez.
+ */
+export function accionesProximas(leads: AccionConFecha[], ahora = Date.now()): AccionConFecha[] {
+  return leads.filter((l) => {
+    const t = Date.parse(l.fecha_proxima_accion ?? "");
+    return Number.isFinite(t) && t > ahora && t <= ahora + 3_600_000;
+  });
+}
