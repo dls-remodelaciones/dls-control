@@ -8,6 +8,7 @@ import FichaDetalle from "./ficha";
 import NuevoLead from "./nuevo";
 import Avisos from "./avisos";
 import { aCsv } from "@/lib/exportar";
+import { coincide } from "@/lib/busqueda";
 
 type Proyecto = {
   tipo: string;
@@ -55,6 +56,7 @@ export default function Pagina() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("hoy");
   const [filtro, setFiltro] = useState<Clase | null>(null);
+  const [busqueda, setBusqueda] = useState("");
   const [sesion, setSesion] = useState<"revisando" | "dentro" | "fuera">("revisando");
   /** lead_id → fecha del mensaje entrante que todavía espera respuesta. */
   const [sinResponder, setSinResponder] = useState<Map<string, string>>(new Map());
@@ -168,8 +170,9 @@ export default function Pagina() {
     if (tab === "hoy") v = conteos.listaA.filter((f) => !sinResponder.has(f.id));
     if (tab === "pipeline") v = filas.filter((f) => f.estado !== "contacto_inicial");
     if (filtro) v = v.filter((f) => f.clasificacion === filtro);
+    if (tab === "bandeja" && busqueda.trim()) v = v.filter((f) => coincide(f as unknown as Record<string, unknown>, busqueda));
     return v;
-  }, [filas, tab, filtro, conteos.listaA, sinResponder]);
+  }, [filas, tab, filtro, busqueda, conteos.listaA, sinResponder]);
 
   /* Mientras se resuelve la sesión, la pantalla no parpadea con datos vacíos. */
   if (sesion !== "dentro") {
@@ -267,6 +270,17 @@ export default function Pagina() {
             </p>
           )}
           {tab === "bandeja" && !cargando && filas.length > 0 && (
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre, teléfono o comuna"
+              aria-label="Buscar leads"
+              className="mt-3 block w-full border px-3 py-2.5 text-[16px]"
+              style={{ background: "var(--color-surface)", borderColor: "var(--color-line)", color: "var(--color-ink)" }}
+            />
+          )}
+          {tab === "bandeja" && !cargando && filas.length > 0 && (
             <button
               onClick={() => descargarExcel(filas)}
               className="mt-1.5 cursor-pointer text-[13px] underline underline-offset-2"
@@ -307,7 +321,12 @@ export default function Pagina() {
             <div className="h-[74px] animate-pulse" style={{ background: "var(--color-surface)" }} />
           </div>
         ) : visibles.length === 0 ? (
-          esperando.length > 0 && tab === "hoy" ? null : (
+          esperando.length > 0 && tab === "hoy" ? null : tab === "bandeja" && busqueda.trim() ? (
+            // Sin esto, una búsqueda sin resultados decía "Sin leads todavía".
+            <p className="px-1 py-6 text-[13px]" style={{ color: "var(--color-muted)" }}>
+              Ningún lead coincide con “{busqueda.trim()}”.
+            </p>
+          ) : (
             <Vacia tab={tab} enNutricion={conteos.b} />
           )
         ) : (

@@ -74,7 +74,7 @@ export function diagnosticar(leads: LeadDiag[], mensajes: MensajeDiag[], conCoti
     if (fuentePrimera && fuentePrimera !== (l.fuente_original ?? "")) {
       cambios.push({
         campo: "fuente_original",
-        ahora: l.fuente_original ?? "(vacía)",
+        ahora: l.fuente_original || "(vacía)",
         propuesto: fuentePrimera,
         por_que: `Es la del primer envío (${primera!.m.creado.slice(0, 10)}).`,
       });
