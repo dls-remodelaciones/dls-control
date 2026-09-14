@@ -15,12 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      # LayoutProps y otros tipos globales los genera Next; sin esto tsc falla en una copia limpia.
+      - name: Tipos de Next
+        run: npx next typegen
       - name: Tipos
         run: npx tsc --noEmit
       - name: Pruebas
