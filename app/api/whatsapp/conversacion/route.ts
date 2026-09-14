@@ -42,6 +42,15 @@ function ultimoEntrante(mensajes: Mensaje[]): string | null {
   return entrantes.reduce((a, b) => (Date.parse(a.creado) > Date.parse(b.creado) ? a : b)).creado;
 }
 
+function fallaDeCarga(error: string | undefined) {
+  return error === "mensajes_no_disponibles"
+    ? NextResponse.json(
+        { ok: false, error, detalle: "No se pudo leer la conversación. Aprieta Actualizar en unos segundos." },
+        { status: 503 },
+      )
+    : NextResponse.json({ ok: false, error }, { status: 404 });
+}
+
 async function cargar(leadId: string) {
   const db = supabaseAdmin();
   if (!db) return { error: "sin_base_de_datos" as const };
@@ -53,13 +62,21 @@ async function cargar(leadId: string) {
     .single();
   if (e1 || !lead) return { error: "lead_no_existe" as const };
 
-  const { data: mensajes } = await db
+  const { data: mensajes, error: e2 } = await db
     .from("mensajes")
     .select("id, direccion, canal, cuerpo, enviado_por, creado")
     .eq("lead_id", leadId)
     .eq("canal", "whatsapp")
     .order("creado", { ascending: false })
     .limit(LIMITE_MENSAJES);
+
+  // Un error acá NO puede verse como "cero mensajes": la pantalla diría "todavía
+  // no te ha escrito" y ofrecería plantillas a alguien que espera respuesta con la
+  // ventana abierta. Pasó el 13-sep-2026 en una carga; al actualizar aparecieron 6.
+  if (e2) {
+    console.error("Conversación: no se pudieron leer los mensajes", e2.message);
+    return { error: "mensajes_no_disponibles" as const };
+  }
 
   return { db, lead, mensajes: (mensajes ?? []) as Mensaje[] };
 }
@@ -72,7 +89,7 @@ export async function GET(req: NextRequest) {
   if (!leadId) return NextResponse.json({ ok: false, error: "falta_lead_id" }, { status: 400 });
 
   const r = await cargar(leadId);
-  if ("error" in r) return NextResponse.json({ ok: false, error: r.error }, { status: 404 });
+  if ("error" in r) return fallaDeCarga(r.error);
 
   const ultimo = ultimoEntrante(r.mensajes);
   const ventana = ventanaAbierta(ultimo);
@@ -121,7 +138,7 @@ export async function POST(req: NextRequest) {
   }
 
   const r = await cargar(leadId);
-  if ("error" in r) return NextResponse.json({ ok: false, error: r.error }, { status: 404 });
+  if ("error" in r) return fallaDeCarga(r.error);
   if (!r.lead.telefono) {
     return NextResponse.json(
       { ok: false, error: "sin_telefono", detalle: "Este lead no dejó teléfono." },
