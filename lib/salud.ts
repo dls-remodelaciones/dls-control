@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { CLAVE as CLAVE_ERRORES, UMBRAL_24H, resumen as resumenErrores, type ErrorSitio } from "@/lib/errores";
 import { consultarWhois, diasHasta, leerVencimiento, DIAS_AVISO, DOMINIO } from "@/lib/dominio";
 import { DIAS_SILENCIO, diasSinLeads, type EstadoNombre } from "@/lib/novedades";
 import { CLAVE as CLAVE_CORREOS, limite, proximoReinicio, vigente, type Uso } from "@/lib/correos";
@@ -94,6 +95,19 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
             : `No entra ningún lead hace ${dias} días. Prueba el cotizador y el chatbot del sitio: algo puede estar roto.`,
       );
     }
+
+    // Errores de JavaScript de los visitantes: si se repiten, algo del sitio está roto para alguien.
+    const { data: filaErrores } = await db.from("config").select("valor").eq("clave", CLAVE_ERRORES).maybeSingle();
+    const re = resumenErrores((filaErrores?.valor as ErrorSitio[] | undefined) ?? [], new Date());
+    anotar(
+      "Errores en el sitio",
+      re.cantidad < UMBRAL_24H,
+      re.cantidad === 0
+        ? "Ningún visitante tuvo errores en las últimas 24 horas."
+        : re.cantidad < UMBRAL_24H
+          ? `${re.cantidad} error(es) aislado(s) en 24 horas.`
+          : `${re.cantidad} errores de visitantes en 24 horas. El que más se repite (${re.veces} veces): ${re.masComun}. Puede que el cotizador o el chatbot no funcionen para algunos clientes.`,
+    );
 
     // Cupo de EmailJS. Se avisa al 80 %: con el tope encima ya no hay margen
     // para cambiar de plan antes de que los correos dejen de salir.
