@@ -53,14 +53,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ignorado: "objeto_no_esperado" });
   }
 
-  // TEMPORAL (14-sep): diagnóstico de la forma real del payload, se saca apenas se confirme.
-  console.log("Instagram: payload crudo", crudo.slice(0, 2000));
-
   const entradas = (cuerpo.entry as EntradaIG[]) ?? [];
   const db = supabaseAdmin();
   const r = await procesarInstagram(entradas, db);
-
-  console.log("Instagram: resultado", JSON.stringify(r).slice(0, 500));
 
   // Igual que WhatsApp: el aviso va después de responder, Meta reintenta si no recibe respuesta a tiempo.
   for (const aviso of r.avisos) after(() => avisar(aviso).then(() => undefined));
