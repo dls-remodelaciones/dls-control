@@ -42,6 +42,47 @@ export interface Plantilla {
 }
 
 /**
+ * Plantillas aprobadas, copiadas del Administrador de WhatsApp (verificado el
+ * 14-sep-2026: las tres "Activa"). Solo se usan como RESPALDO cuando Meta no
+ * deja listar las plantillas en vivo: el token del panel recibe "(#200) Need
+ * either permission on WhatsApp Business Account" al consultarlas, aunque sí
+ * puede enviarlas. Sin este respaldo, pasadas las 24 horas no había forma de
+ * escribirle a un cliente desde el panel.
+ *
+ * Si Meta pausa o rechaza una, el envío falla con el motivo de Meta a la vista.
+ * Al arreglar el permiso en Meta, la lista en vivo vuelve a mandar sola.
+ */
+export const PLANTILLAS_APROBADAS: Plantilla[] = [
+  {
+    nombre: "cotizacion_lista",
+    idioma: "es_CL",
+    categoria: "UTILITY",
+    cuerpo:
+      "Hola {{1}}, te escribo de DLS Arquitectura y Construcción. Ya tenemos lista la cotización de tu proyecto de {{2}}. ¿Te parece si te la envío por acá?",
+    variables: 2,
+    estado: "APPROVED",
+  },
+  {
+    nombre: "visita_terreno",
+    idioma: "es_CL",
+    categoria: "UTILITY",
+    cuerpo:
+      "Hola {{1}}, te confirmo la visita a terreno en {{2}} para el {{3}}. Si te acomoda otro horario, respóndeme por acá y lo movemos.",
+    variables: 3,
+    estado: "APPROVED",
+  },
+  {
+    nombre: "retomar_contacto",
+    idioma: "es_CL",
+    categoria: "MARKETING",
+    cuerpo:
+      "Hola {{1}}, hace un tiempo nos escribiste por tu proyecto de {{2}}. Si sigues interesado, cuéntame y retomamos donde quedamos.",
+    variables: 2,
+    estado: "APPROVED",
+  },
+];
+
+/**
  * Las plantillas de la cuenta, con su estado real en Meta.
  *
  * Se consultan en vivo en vez de guardarlas acá: Meta puede pausar o rechazar
@@ -64,6 +105,11 @@ export async function listarPlantillas(): Promise<
     const j = (await r.json()) as Record<string, unknown>;
     if (!r.ok) {
       const err = (j.error ?? {}) as Record<string, unknown>;
+      // Falta de permiso para LISTAR (no para enviar): se usan las aprobadas conocidas.
+      if (Number(err.code) === 200 || /permission/i.test(String(err.message ?? ""))) {
+        console.warn("WhatsApp: sin permiso para listar plantillas; uso las aprobadas conocidas.");
+        return { ok: true, plantillas: PLANTILLAS_APROBADAS };
+      }
       return { ok: false, error: "meta_rechazo", detalle: String(err.message ?? "no se pudo listar") };
     }
 
