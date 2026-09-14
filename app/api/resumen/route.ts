@@ -34,7 +34,9 @@ export async function GET(req: NextRequest) {
   const hace7 = new Date(ahora - 7 * DIA).toISOString();
   const hace14 = new Date(ahora - 14 * DIA).toISOString();
 
-  const campos = "canal, clasificacion, estado, apto_para_llamar, creado";
+  // telefono y email: para contar los que entraron por DM y no dejaron cómo
+  // contactarlos (lib/resumen.ts).
+  const campos = "canal, clasificacion, estado, apto_para_llamar, creado, telefono, email";
   const [recientes, pendientes, ediciones, perdidos, chats] = await Promise.all([
     db.from("leads").select(campos).gte("creado", hace14).limit(5000),
     db.from("leads").select(campos).eq("clasificacion", "A").eq("estado", "contacto_inicial").limit(5000),

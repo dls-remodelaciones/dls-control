@@ -14,6 +14,9 @@ export interface FilaLead {
   estado: string | null;
   apto_para_llamar: boolean | null;
   creado: string;
+  /** Un DM no deja ninguno de los dos: por eso se cuentan aparte. */
+  telefono?: string | null;
+  email?: string | null;
 }
 
 const NOMBRE_CANAL: Record<string, string> = {
@@ -23,6 +26,7 @@ const NOMBRE_CANAL: Record<string, string> = {
   whatsapp: "WhatsApp",
   manual: "anotados a mano",
   instagram: "Instagram",
+  facebook: "Messenger",
   correo: "correo",
 };
 
@@ -79,8 +83,23 @@ export function resumirSemana(
     partes.push(`A ${clases.A} · B ${clases.B} · C ${clases.C} · D ${clases.D}.`);
     const origen = [...canales.entries()].sort((a, b) => b[1] - a[1]).map(([c, k]) => `${k} ${c}`);
     partes.push(`Llegaron por: ${origen.join(", ")}.`);
+
+    // Los que no dejaron cómo contactarlos: casi siempre DM de Instagram o
+    // Messenger, que no traen teléfono ni correo. No se les puede llamar ni
+    // escribir desde el panel — hay que ir a contestarles por donde escribieron.
+    // Es trabajo a mano que de otro modo no aparece en ningún número.
+    const sinContacto = semana.filter((l) => !l.telefono && !l.email).length;
+    if (sinContacto > 0) {
+      partes.push(
+        sinContacto === 1
+          ? "1 entró sin teléfono ni correo: hay que contestarle por donde escribió."
+          : `${sinContacto} entraron sin teléfono ni correo: hay que contestarles por donde escribieron.`,
+      );
+    }
   } else if (anterior.length > 0) {
-    partes.push(`La semana anterior entraron ${anterior.length}. Revisa que el sitio y WhatsApp estén funcionando.`);
+    partes.push(
+      `La semana anterior entraron ${anterior.length}. Revisa que el sitio, WhatsApp, Instagram y Messenger estén funcionando.`,
+    );
   }
   partes.push(
     pendientesA === 0

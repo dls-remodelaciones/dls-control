@@ -2,12 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resumirSemana, contarPendientesA, avancesSemana, type FilaLead } from "../lib/resumen";
 
+/** Por defecto con teléfono, que es el caso normal; los DM lo pasan en null. */
 const lead = (canal: string, clasificacion: string, extra: Partial<FilaLead> = {}): FilaLead => ({
   canal,
   clasificacion,
   estado: "contacto_inicial",
   apto_para_llamar: clasificacion === "A",
   creado: "2026-09-10T12:00:00Z",
+  telefono: "56956381974",
+  email: null,
   ...extra,
 });
 
@@ -18,6 +21,38 @@ test("cuenta clases, canales y compara con la semana anterior", () => {
   assert.match(r.cuerpo, /A 1 · B 1 · C 1 · D 0/);
   assert.match(r.cuerpo, /Llegaron por: 2 cotizador, 1 WhatsApp/);
   assert.match(r.cuerpo, /1 lead A sigue sin llamar/);
+});
+
+test("Messenger aparece con su nombre, no como 'facebook'", () => {
+  const r = resumirSemana([lead("facebook", "C"), lead("instagram", "C")], [], 0);
+  assert.match(r.cuerpo, /1 Messenger/);
+  assert.match(r.cuerpo, /1 Instagram/);
+  assert.ok(!/facebook/i.test(r.cuerpo), `no debería decir el nombre técnico: ${r.cuerpo}`);
+});
+
+test("avisa cuántos entraron sin forma de contactarlos", () => {
+  const semana = [
+    lead("instagram", "D", { telefono: null, email: null }),
+    lead("facebook", "D", { telefono: null, email: null }),
+    lead("cotizador", "A"),
+  ];
+  const r = resumirSemana(semana, [], 0);
+  assert.match(r.cuerpo, /2 entraron sin teléfono ni correo/);
+});
+
+test("un solo lead sin contacto se dice en singular", () => {
+  const r = resumirSemana([lead("instagram", "D", { telefono: null, email: null })], [], 0);
+  assert.match(r.cuerpo, /1 entró sin teléfono ni correo/);
+});
+
+test("un lead con solo correo cuenta como contactable", () => {
+  const r = resumirSemana([lead("web", "C", { telefono: null, email: "ana@correo.cl" })], [], 0);
+  assert.ok(!/sin teléfono ni correo/.test(r.cuerpo), `no debería contarlo: ${r.cuerpo}`);
+});
+
+test("una semana normal no menciona el tema de los sin contacto", () => {
+  const r = resumirSemana([lead("cotizador", "A"), lead("whatsapp", "B")], [], 0);
+  assert.ok(!/sin teléfono ni correo/.test(r.cuerpo), r.cuerpo);
 });
 
 test("una semana sin leads después de una con leads pide revisar el sitio", () => {
