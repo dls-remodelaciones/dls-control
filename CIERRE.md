@@ -22,6 +22,10 @@ Business Suite con RUT, razón social y dirección legal de DLS Arquitectura y
 Construcción SpA. **Solo la puede hacer Daniel** — son datos legales y no se
 inventan.
 
+> **Enviada el 2026-09-14 y en revisión.** Meta responde en ~2 días laborables.
+> Todo lo que cuelga de acá queda esperando esa respuesta; no hay nada que hacer
+> mientras, ni forma de apurarlo.
+
 De ella cuelga, en cadena:
 
 1. Poder **enviar** la solicitud de revisión de la aplicación (hoy el formulario
@@ -59,13 +63,33 @@ Messenger tiene el código completo y probado. Lo único que le falta es el perm
 
 ## Lo que queda abierto
 
-### 1. Verificar el negocio ante Meta — **Daniel**
+### 1. Verificar el negocio ante Meta — **enviado el 2026-09-14, en revisión**
 **Listo cuando:** el portafolio aparece verificado en Meta Business Suite.
-**Por qué importa:** ver "El cuello de botella".
+**Estado:** "Confirmación de identidad en curso". Meta revisa en ~48 h y notifica.
+**Lo que costó llegar, para no repetirlo:**
+- El botón "Iniciar verificación" de la solicitud lleva al Centro de seguridad, no al
+  formulario. El trámite está **al final** de esa página, en la tarjeta "Verificación de la
+  empresa" — hay que bajar hasta abajo para verla.
+- Antes no aparecía porque los datos de la empresa estaban incompletos (la dirección decía
+  solo "Chile" y no había teléfono). Al completarlos, Meta dijo "cumple los requisitos".
+- El campo **Identificación fiscal** de "Información de la empresa" es el que permite que
+  Meta cruce la empresa contra los registros chilenos. Con el RUT puesto, el buscador
+  encontró el registro real.
+- **Trampa peligrosa:** el buscador de registros devolvió 32 resultados y los primeros eran
+  empresas de terceros con el texto "Actividad comercial como: DLS ARQUITECTURA Y
+  CONSTRUCCION SPA" — repetía el término buscado. Hay que verificar **nombre + identificación
+  fiscal + dirección + responsable** antes de elegir; algunas tenían incluso el mismo dígito
+  verificador. Elegir la equivocada habría vinculado el negocio a la identidad legal de otra
+  empresa.
+- Las fotos de la cédula enviadas por WhatsApp llegan a **1280×960** y Meta exige 1500×1000:
+  WhatsApp comprime a 1280 px de lado. Hay que pasar el archivo por cable o nube, o hacer el
+  trámite desde el propio teléfono.
 
 ### 2. Enviar la solicitud de revisión — **Daniel decide, Claude ejecuta**
 **Listo cuando:** la solicitud aparece "En revisión" en Meta for Developers.
-**Bloqueado por:** el punto 1.
+**Bloqueado por:** el punto 1 (enviado, esperando respuesta de Meta) y por que Meta
+registre la llamada de prueba a la API, que tarda hasta 24 h en aparecer y luego
+vale 30 días. Con esas dos cosas, el formulario queda completo.
 **Cuidado:** es irreversible — enviada, no se puede editar ni cancelar. No se
 envía sin que Daniel vea el formulario completo y lo apruebe.
 
