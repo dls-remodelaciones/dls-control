@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import crypto from "crypto";
 import { registrarLead } from "@/lib/registrar-lead";
+import { firmaValida } from "@/lib/firma-meta";
 import { avisar } from "@/lib/avisos";
 import { fallidos, type EstadoWA } from "@/lib/entregas";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -43,44 +43,7 @@ export async function GET(req: NextRequest) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
-/* ── Firma de Meta ─────────────────────────────────────────────────────────
-   Meta firma cada POST con el secreto de la app. Verificarlo es lo que impide
-   que cualquiera invente mensajes contra esta URL — el verify_token sólo
-   protege el alta, no los envíos. Si no hay secreto configurado se deja pasar
-   y se avisa en el log: prefiero recibir leads sin firmar a perderlos, pero
-   esto no debería quedarse así. */
-function firmaValida(crudo: string, firma: string | null): boolean {
-  // `.trim()`: un secreto pegado a mano en un panel llega con espacios o un
-  // salto de línea más veces de las que uno quisiera, y el fallo resultante es
-  // idéntico al de un secreto equivocado.
-  const secreto = (process.env.WA_APP_SECRET ?? "").trim();
-  if (!secreto) {
-    console.warn("WhatsApp: sin WA_APP_SECRET, no se verifica la firma de Meta");
-    return true;
-  }
-  if (!firma?.startsWith("sha256=")) {
-    console.error("WhatsApp: llegó un POST sin cabecera de firma de Meta");
-    return false;
-  }
-  const esperada = "sha256=" + crypto.createHmac("sha256", secreto).update(crudo).digest("hex");
-  const a = Buffer.from(firma);
-  const b = Buffer.from(esperada);
-  const calza = a.length === b.length && crypto.timingSafeEqual(a, b);
-
-  if (!calza) {
-    // Pistas para distinguir "secreto equivocado" de "cuerpo alterado", sin
-    // escribir el secreto en ningún log: los primeros caracteres de dos HMAC
-    // no permiten reconstruir la clave.
-    console.error(
-      "WhatsApp: firma no calza.",
-      `largo_secreto=${secreto.length}`,
-      `largo_cuerpo=${crudo.length}`,
-      `recibida=${firma.slice(0, 15)}…`,
-      `esperada=${esperada.slice(0, 15)}…`,
-    );
-  }
-  return calza;
-}
+/* ── Firma de Meta: vive en lib/firma-meta.ts, con sus pruebas. ─────────── */
 
 /* ── Lo que se puede leer de un texto libre ────────────────────────────────
    Sin inventar: sólo se extrae lo que la persona nombró explícitamente. Si
@@ -126,7 +89,7 @@ async function avisarNoEntregado(telefono: string, motivo: string, codigo: numbe
 export async function POST(req: NextRequest) {
   const crudo = await req.text();
 
-  if (!firmaValida(crudo, req.headers.get("x-hub-signature-256"))) {
+  if (!firmaValida(crudo, req.headers.get("x-hub-signature-256"), process.env.WA_APP_SECRET)) {
     return new NextResponse("firma_invalida", { status: 401 });
   }
 
