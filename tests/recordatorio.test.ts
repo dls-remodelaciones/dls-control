@@ -62,3 +62,14 @@ test("próximas acciones: avisa por las que caen en la hora siguiente, una sola 
   // La corrida siguiente no repite los mismos.
   assert.deepEqual(accionesProximas(lista, base + 3_600_000).map((x) => x.id), ["en-2h"]);
 });
+
+test("un lead cerrado o que no prosperó no avisa aunque tenga recordatorio", () => {
+  const base = Date.parse("2026-09-14T13:00:00Z");
+  const fecha = "2026-09-14T13:30:00Z";
+  const lista = [
+    { id: "abierto", nombre: "a", proxima_accion: "llamar", fecha_proxima_accion: fecha, estado: "visita_terreno" },
+    { id: "cerrado", nombre: "b", proxima_accion: "llamar", fecha_proxima_accion: fecha, estado: "cerrado" },
+    { id: "perdido", nombre: "c", proxima_accion: "llamar", fecha_proxima_accion: fecha, estado: "no_prospero" },
+  ];
+  assert.deepEqual(accionesProximas(lista, base).map((x) => x.id), ["abierto"]);
+});

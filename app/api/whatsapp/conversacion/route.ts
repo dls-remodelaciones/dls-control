@@ -269,15 +269,30 @@ export async function POST(req: NextRequest) {
   // una persona respondiendo, se sabe quién dijo qué. De la plantilla se guarda
   // el texto YA RELLENO, que es lo que la persona recibió — guardar el nombre
   // de la plantilla obligaría a reconstruirlo después para saber qué se dijo.
-  await r.db.from("mensajes").insert({
+  const fila = {
     lead_id: leadId,
     direccion: "saliente",
     canal: "whatsapp",
     asunto,
     cuerpo: guardado,
     enviado_por: quien.email || "panel",
-  });
+  };
+  // El mensaje YA salió: si la base falla al anotarlo, se reintenta una vez. Sin
+  // registro, el panel seguiría mostrando al cliente como "sin responder" y el
+  // aviso de ventana por vencer insistiría con alguien que ya tuvo respuesta.
+  let { error: eRegistro } = await r.db.from("mensajes").insert(fila);
+  if (eRegistro) {
+    await new Promise((listo) => setTimeout(listo, 800));
+    ({ error: eRegistro } = await r.db.from("mensajes").insert(fila));
+  }
+  if (eRegistro) console.error("Conversación: mensaje enviado pero no registrado", eRegistro.message);
   await r.db.from("leads").update({ ultima_actividad: new Date().toISOString() }).eq("id", leadId);
 
-  return NextResponse.json({ ok: true, id_mensaje: envio.id_mensaje });
+  return NextResponse.json({
+    ok: true,
+    id_mensaje: envio.id_mensaje,
+    ...(eRegistro
+      ? { advertencia: "El mensaje salió, pero no quedó anotado en el historial. Si el cliente sigue apareciendo sin responder, usa Marcar atendido." }
+      : {}),
+  });
 }

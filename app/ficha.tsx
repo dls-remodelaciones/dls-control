@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { pedirJson } from "@/lib/pedir";
 import Historial from "./historial";
 import { config, type Senal, type TipoProyecto } from "@/lib/negocio";
 
@@ -83,7 +84,16 @@ function aLocal(iso: string | null | undefined): string {
   return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}T${p(t.getHours())}:${p(t.getMinutes())}`;
 }
 
-export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () => void }) {
+export default function Ficha({
+  f,
+  alGuardar,
+  alCambiar,
+}: {
+  f: DatosFicha;
+  alGuardar: () => void;
+  /** Avisa si hay cambios sin guardar, para no perderlos al cerrar la ficha. */
+  alCambiar?: (sucia: boolean) => void;
+}) {
   const [d, setD] = useState({
     nombre: f.nombre ?? "",
     telefono: f.telefono ?? "",
@@ -105,6 +115,17 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
   const [resultado, setResultado] = useState<{ score: number; clasificacion: string } | null>(null);
   const [desglose, setDesglose] = useState<Senal[]>(Array.isArray(f.desglose) ? f.desglose : []);
   const [viendoPorque, setViendoPorque] = useState(false);
+  // Lo último guardado, para saber si lo que está en pantalla tiene cambios pendientes.
+  const [guardado, setGuardado] = useState(d);
+  const sucia = JSON.stringify(d) !== JSON.stringify(guardado);
+  useEffect(() => {
+    alCambiar?.(sucia);
+    if (!sucia) return;
+    // Recargar o cerrar la pestaña con cambios pendientes también pregunta.
+    const avisar = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [sucia, alCambiar]);
 
   const tipos = Object.entries(config().tipos) as [TipoProyecto, { label: string; rangos: string[] }][];
   // Los tramos dependen del tipo: ofrecer los de otro proyecto sería ofrecer
@@ -120,7 +141,8 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
     setAviso(null);
     const sb = supabase;
     const jwt = sb ? (await sb.auth.getSession()).data.session?.access_token : "";
-    const r = await fetch("/api/leads/actualizar", {
+    const enviado = d;
+    const j = await pedirJson("/api/leads/actualizar", {
       method: "POST",
       headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
       // La fecha viaja en ISO: el input da hora local sin zona, y el servidor la guardaría corrida.
@@ -130,12 +152,12 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
         fecha_proxima_accion: d.fecha_proxima_accion ? new Date(d.fecha_proxima_accion).toISOString() : "",
       }),
     });
-    const j = await r.json();
     setGuardando(false);
     if (!j.ok) {
       setAviso(j.detalle ?? j.error ?? "No se pudo guardar.");
       return;
     }
+    setGuardado(enviado);
     setResultado({ score: j.score, clasificacion: j.clasificacion });
     if (Array.isArray(j.desglose)) setDesglose(j.desglose);
     alGuardar();
@@ -340,7 +362,9 @@ export default function Ficha({ f, alGuardar }: { f: DatosFicha; alGuardar: () =
 
       <div className="mt-3 flex items-center justify-between">
         <span className="text-[11.5px]" style={{ color: "var(--color-muted)" }}>
-          {resultado ? (
+          {sucia ? (
+            <b style={{ color: "var(--color-b)" }}>Tienes cambios sin guardar</b>
+          ) : resultado ? (
             <>
               Guardado · ahora es{" "}
               <b style={{ color: "var(--color-a)" }}>

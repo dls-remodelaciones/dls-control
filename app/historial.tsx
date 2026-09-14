@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { CAMPOS_HISTORIAL } from "@/lib/edicion";
+import { config, type TipoProyecto } from "@/lib/negocio";
 
 /**
  * Historial de un lead: ediciones, cambios de puntaje, llamadas, WhatsApp que no
@@ -30,6 +32,19 @@ const ESTADO: Record<string, string> = {
   no_prospero: "no prosperó",
 };
 
+function valorLegible(campo: string, v: unknown): string {
+  if (v == null || v === "") return "vacío";
+  if (campo === "fecha_proxima_accion") {
+    const t = new Date(String(v));
+    return Number.isNaN(t.getTime())
+      ? String(v)
+      : t.toLocaleString("es-CL", { timeZone: "America/Santiago", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  }
+  if (campo === "tipo_proyecto") return config().tipos[v as TipoProyecto]?.label ?? String(v);
+  if (campo === "superficie_m2") return `${v} m²`;
+  return String(v);
+}
+
 export function describir(a: Pick<Actividad, "tipo" | "antes" | "despues">): string {
   const antes = a.antes ?? {};
   const despues = a.despues ?? {};
@@ -45,8 +60,18 @@ export function describir(a: Pick<Actividad, "tipo" | "antes" | "despues">): str
         antes.estado !== despues.estado && despues.estado
           ? ` · estado: ${ESTADO[String(antes.estado)] ?? antes.estado} → ${ESTADO[String(despues.estado)] ?? despues.estado}`
           : "";
-      return `Ficha editada${estado}${puntaje()}`;
+      // Qué datos cambiaron (se registra desde el 14-sep-2026; las ediciones anteriores no lo traen).
+      const datos = Object.entries(CAMPOS_HISTORIAL)
+        .filter(([k]) => k in despues)
+        .map(([k, etiqueta]) =>
+          k === "nota_interna"
+            ? "nota actualizada"
+            : `${etiqueta}: ${valorLegible(k, antes[k])} → ${valorLegible(k, despues[k])}`,
+        );
+      return `Ficha editada${estado}${datos.length ? ` · ${datos.join(" · ")}` : ""}${puntaje()}`;
     }
+    case "wa_atendido":
+      return "WhatsApp marcado como atendido";
     case "score":
       return antes.score === undefined
         ? `Entró como ${despues.clasificacion} ${despues.score}`

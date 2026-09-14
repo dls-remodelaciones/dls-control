@@ -35,6 +35,9 @@ self.addEventListener("push", (event) => {
         // Mismo tag para el mismo lead: si escribe tres veces seguidas, se
         // reemplaza el aviso en vez de apilar tres.
         tag: datos.tag || undefined,
+        // Sin renotify, el reemplazo es MUDO: el segundo WhatsApp del mismo
+        // cliente cambiaba el texto del aviso sin sonar ni vibrar.
+        renotify: Boolean(datos.tag),
         data,
       })
       .catch(() => self.registration.showNotification(titulo, { body: cuerpo, data })),

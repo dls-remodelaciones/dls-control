@@ -86,6 +86,8 @@ export default function Pagina() {
   /** lead_id → fecha del mensaje entrante que todavía espera respuesta. */
   const [sinResponder, setSinResponder] = useState<Map<string, string>>(new Map());
   const [anotando, setAnotando] = useState(false);
+  /** Última lectura buena de la base: para saber si lo que se ve es de ahora. */
+  const [actualizado, setActualizado] = useState<Date | null>(null);
 
   // La base no le muestra nada a quien no tiene sesión (Row Level Security),
   // así que sin ingresar no tiene sentido ni intentar leer.
@@ -120,7 +122,11 @@ export default function Pagina() {
       .order("creado", { ascending: false })
       .limit(TOPE_LEADS);
     if (error) setError(error.message);
-    else setFilas((data ?? []) as Fila[]);
+    else {
+      setError(null);
+      setFilas((data ?? []) as Fila[]);
+      setActualizado(new Date());
+    }
 
     // Quién escribió y todavía no tiene respuesta. Va aparte del puntaje a
     // propósito: alguien que te acaba de escribir es una obligación, no una
@@ -238,6 +244,16 @@ export default function Pagina() {
     [esperando, paraHoy, conteos.listaA],
   );
 
+  // Lo pendiente de hoy también afuera del panel: como número en el ícono de la
+  // app instalada y en el título de la pestaña. Así se ve sin abrirla.
+  useEffect(() => {
+    if (cargando) return;
+    document.title = totalHoy > 0 ? `(${totalHoy}) DLS Control` : "DLS Control";
+    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (totalHoy > 0) void nav.setAppBadge?.(totalHoy).catch(() => undefined);
+    else void nav.clearAppBadge?.().catch(() => undefined);
+  }, [totalHoy, cargando]);
+
   const visibles = useMemo(() => {
     let v = filas;
     // En "Hoy" no se repiten arriba y abajo: si está esperando respuesta, ya
@@ -343,6 +359,17 @@ export default function Pagina() {
                 : esperando.length > 0
                   ? "Te escribieron y todavía no les respondes."
                   : "Todos ya pasaron el filtro: tienen presupuesto, plazo, comuna y teléfono."}
+            </p>
+          )}
+          {/* Cuándo se leyó la base por última vez, y cómo pedirlo ya. La lista se
+              refresca sola cada 45 s, pero sin la hora no hay cómo saberlo. */}
+          {actualizado && (
+            <p className="mt-1 text-[11.5px] tabular-nums" style={{ color: "var(--color-muted)" }}>
+              Actualizado a las{" "}
+              {actualizado.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} ·{" "}
+              <button onClick={() => void cargar()} className="cursor-pointer underline underline-offset-2">
+                Actualizar ahora
+              </button>
             </p>
           )}
           {/* El pipeline mezclaba todas las etapas sin decir cuántas hay en cada una. */}
@@ -546,6 +573,16 @@ function Ficha({
   const [conversando, setConversando] = useState(Boolean(esperaDesde) || (enfocado && Boolean(f.telefono)));
   const [viendoFicha, setViendoFicha] = useState(enfocado && !f.telefono);
   const tarjeta = useRef<HTMLLIElement>(null);
+  // Cambios escritos en la ficha y no guardados: cerrarla sin querer los perdía.
+  const fichaSucia = useRef(false);
+  const marcarSucia = useCallback((s: boolean) => {
+    fichaSucia.current = s;
+  }, []);
+  function alternarFicha() {
+    if (viendoFicha && fichaSucia.current && !window.confirm("Tienes cambios sin guardar en la ficha. ¿Cerrarla igual y perderlos?")) return;
+    if (viendoFicha) fichaSucia.current = false;
+    setViendoFicha((v) => !v);
+  }
   useEffect(() => {
     if (enfocado) tarjeta.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [enfocado]);
@@ -677,7 +714,7 @@ function Ficha({
           </button>
         )}
         <button
-          onClick={() => setViendoFicha((v) => !v)}
+          onClick={alternarFicha}
           className="flex-1 cursor-pointer py-2.5 text-center text-[12.5px] font-medium"
           style={{ color: viendoFicha ? "var(--color-a)" : undefined }}
         >
@@ -698,7 +735,7 @@ function Ficha({
         />
       )}
 
-      {viendoFicha && <FichaDetalle f={f} alGuardar={recargar} />}
+      {viendoFicha && <FichaDetalle f={f} alGuardar={recargar} alCambiar={marcarSucia} />}
     </li>
   );
 }
@@ -713,7 +750,7 @@ function Vacia({ tab, enNutricion }: { tab: Tab; enNutricion: number }) {
       <div className="border border-dashed px-5 py-8 text-center" style={marco}>
         <h2 className="text-[15px] font-semibold">Nadie califica para llamar hoy</h2>
         <p className="mt-2 text-[13px]" style={{ color: "var(--color-muted)" }}>
-          No es un error: es que ningún lead llegó a 75 puntos con teléfono válido.
+          No es un error: es que ningún lead llegó a {config().umbrales.A} puntos con teléfono válido.
         </p>
         <ul className="mt-3 space-y-1.5 text-left text-[13px]" style={{ color: "var(--color-muted)" }}>
           {enNutricion > 0 && <li>· Tienes {enNutricion} en nutrición a pocos puntos de A.</li>}

@@ -56,16 +56,24 @@ export interface AccionConFecha {
   nombre: string | null;
   proxima_accion: string | null;
   fecha_proxima_accion: string | null;
+  estado?: string | null;
 }
+
+/** Leads que ya terminaron: sus recordatorios viejos no deben sonar. */
+export const ESTADOS_CERRADOS = ["cerrado", "no_prospero"];
 
 /**
  * Recordatorios que Daniel se puso en la ficha ("llamar el jueves a las 10").
  * El cron corre cada hora en punto, así que se avisa por los que caen dentro
  * de la HORA SIGUIENTE: mejor unos minutos antes que tarde. Cada recordatorio
  * cae en una sola de esas franjas, así que avisa una sola vez.
+ *
+ * Un lead cerrado o que no prosperó no avisa aunque tenga fecha: al cerrarlo
+ * nadie se acuerda de borrar el "llamar el jueves", y el aviso llegaba igual.
  */
 export function accionesProximas(leads: AccionConFecha[], ahora = Date.now()): AccionConFecha[] {
   return leads.filter((l) => {
+    if (l.estado && ESTADOS_CERRADOS.includes(l.estado)) return false;
     const t = Date.parse(l.fecha_proxima_accion ?? "");
     return Number.isFinite(t) && t > ahora && t <= ahora + 3_600_000;
   });

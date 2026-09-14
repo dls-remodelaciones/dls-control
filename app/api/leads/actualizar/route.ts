@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { usuarioDeLaPeticion } from "@/lib/sesion";
 import { normalizarComuna } from "@/lib/comunas";
+import { camposCambiados, datoInvalido } from "@/lib/edicion";
 import {
   calificar,
   normalizarTelefono,
@@ -63,6 +64,12 @@ export async function POST(req: NextRequest) {
   // vacío: si la ficha manda solo el estado, el resto queda como estaba.
   const tiene = (k: string) => Object.prototype.hasOwnProperty.call(body, k);
   const fusion: Record<string, unknown> = { ...previo };
+
+  // Un teléfono o correo escrito mal NO se guarda como vacío: antes un dígito de
+  // menos borraba en silencio el teléfono con que se llamaba al cliente. Vacío a
+  // propósito sí se acepta (se borra); mal escrito se rechaza y se dice cuál.
+  const invalido = datoInvalido(body, tiene);
+  if (invalido) return NextResponse.json({ ok: false, error: invalido.error, detalle: invalido.detalle }, { status: 422 });
 
   if (tiene("nombre")) fusion.nombre = txt(body.nombre, 120) || "Sin nombre";
   if (tiene("telefono")) {
@@ -134,11 +141,13 @@ export async function POST(req: NextRequest) {
 
   // Queda el rastro de quién lo editó y qué cambió de puntaje. Sin esto, un
   // lead que sube de C a A parece haberlo hecho solo.
+  // También qué datos cambiaron: "comuna: Ñuñoa → Providencia" dice más que "ficha editada".
+  const cambios = camposCambiados(previo, fusion);
   await db.from("actividad").insert({
     lead_id: id,
     tipo: "edicion",
-    antes: { score: previo.score, clasificacion: previo.clasificacion, estado: previo.estado },
-    despues: { score: cal.score, clasificacion: cal.clasificacion, estado: fusion.estado },
+    antes: { score: previo.score, clasificacion: previo.clasificacion, estado: previo.estado, ...cambios.antes },
+    despues: { score: cal.score, clasificacion: cal.clasificacion, estado: fusion.estado, ...cambios.despues },
     quien: quien.email || "panel",
   });
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { pedirJson } from "@/lib/pedir";
 import { config, type TipoProyecto } from "@/lib/negocio";
 
 /**
@@ -31,10 +32,15 @@ const PROPIEDADES: [string, string][] = [
   ["arriendo", "Arriendo"],
 ];
 
+// Con el origen preciso, el resumen semanal y el Excel dicen qué canal trae clientes.
 const ORIGENES = [
   "Llamada telefónica",
+  "WhatsApp personal",
   "Instagram",
+  "Facebook",
+  "Google",
   "Referido",
+  "Letrero de obra",
   "Visita a obra",
   "Otro",
 ];
@@ -73,12 +79,11 @@ export default function NuevoLead({ alCerrar, alCrear }: { alCerrar: () => void;
     setAviso(null);
     const sb = supabase;
     const jwt = sb ? (await sb.auth.getSession()).data.session?.access_token : "";
-    const r = await fetch("/api/leads/crear", {
+    const j = await pedirJson("/api/leads/crear", {
       method: "POST",
       headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
       body: JSON.stringify(d),
     });
-    const j = await r.json();
     setGuardando(false);
     if (!j.ok) {
       setAviso(j.detalle ?? j.error ?? "No se pudo crear.");

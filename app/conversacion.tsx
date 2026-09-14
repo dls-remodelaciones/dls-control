@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { pedirJson } from "@/lib/pedir";
 
 /**
  * Responder un WhatsApp sin salir de la ficha del lead.
@@ -93,18 +94,33 @@ export default function Conversacion({
   const [elegida, setElegida] = useState<string>("");
   const [valores, setValores] = useState<string[]>([]);
   const caja = useRef<HTMLTextAreaElement>(null);
+  const lista = useRef<HTMLDivElement>(null);
+  const ultimoVisto = useRef<string>("");
+
+  // El historial abre en el mensaje más nuevo y baja solo cuando llega otro.
+  // Antes abría arriba, en el más antiguo, y lo último que escribió el cliente
+  // quedaba escondido bajo el borde. Si estás leyendo más arriba, no te mueve.
+  const ultimoId = estado?.mensajes[estado.mensajes.length - 1]?.id ?? "";
+  useEffect(() => {
+    const el = lista.current;
+    if (!el || !ultimoId || ultimoId === ultimoVisto.current) return;
+    const primeraVez = ultimoVisto.current === "";
+    const cercaDelFinal = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    ultimoVisto.current = ultimoId;
+    if (primeraVez || cercaDelFinal) el.scrollTop = el.scrollHeight;
+  }, [ultimoId]);
 
   const cargar = useCallback(async () => {
     const jwt = await conSesion();
     if (!jwt) return setAviso("Tu sesión expiró. Vuelve a entrar.");
     // leido=1: con el chat abierto a la vista, el cliente ve los tics azules.
     const visible = typeof document === "undefined" || document.visibilityState === "visible";
-    const r = await fetch(`/api/whatsapp/conversacion?lead_id=${encodeURIComponent(leadId)}${visible ? "&leido=1" : ""}`, {
+    const j = await pedirJson(`/api/whatsapp/conversacion?lead_id=${encodeURIComponent(leadId)}${visible ? "&leido=1" : ""}`, {
       headers: { Authorization: `Bearer ${jwt}` },
     });
-    const j = await r.json();
     if (!j.ok) return setAviso(j.detalle ?? j.error ?? "No se pudo cargar la conversación.");
-    setEstado(j as Estado);
+    setAviso((a) => (a && /conexión|servidor respondió/.test(a) ? null : a));
+    setEstado(j as unknown as Estado);
   }, [leadId]);
 
   useEffect(() => {
@@ -127,12 +143,11 @@ export default function Conversacion({
     setEnviando(true);
     setAviso(null);
     const jwt = await conSesion();
-    const r = await fetch("/api/whatsapp/conversacion", {
+    const j = await pedirJson("/api/whatsapp/conversacion", {
       method: "POST",
       headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
       body: JSON.stringify({ lead_id: leadId, texto: cuerpo }),
     });
-    const j = await r.json();
     setEnviando(false);
     if (!j.ok) {
       setAviso(j.detalle ?? j.error ?? "No se pudo enviar.");
@@ -142,6 +157,7 @@ export default function Conversacion({
       return;
     }
     setTexto("");
+    if (j.advertencia) setAviso(String(j.advertencia));
     void cargar();
   }, [texto, enviando, leadId, cargar]);
 
@@ -150,12 +166,11 @@ export default function Conversacion({
     setEnviando(true);
     setAviso(null);
     const jwt = await conSesion();
-    const r = await fetch("/api/whatsapp/conversacion", {
+    const j = await pedirJson("/api/whatsapp/conversacion", {
       method: "POST",
       headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
       body: JSON.stringify({ lead_id: leadId, plantilla: elegida, valores }),
     });
-    const j = await r.json();
     setEnviando(false);
     if (!j.ok) {
       setAviso(j.detalle ?? j.error ?? "No se pudo enviar la plantilla.");
@@ -163,6 +178,7 @@ export default function Conversacion({
     }
     setElegida("");
     setValores([]);
+    if (j.advertencia) setAviso(String(j.advertencia));
     void cargar();
   }, [elegida, valores, enviando, leadId, cargar]);
 
@@ -241,7 +257,7 @@ export default function Conversacion({
 
       {/* Historial. Solo WhatsApp: mezclar canales confunde más de lo que ayuda. */}
       {mensajes.length > 0 && (
-        <div className="max-h-64 overflow-y-auto px-3.5 py-2.5">
+        <div ref={lista} className="max-h-64 overflow-y-auto px-3.5 py-2.5">
           {mensajes.map((m) => {
             const mio = m.direccion === "saliente";
             return (
@@ -312,9 +328,12 @@ export default function Conversacion({
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => {
-              // Enter envía; Shift+Enter hace salto de línea. Es lo que la mano
-              // ya espera después de años de mensajería.
-              if (e.key === "Enter" && !e.shiftKey) {
+              // En el computador, Enter envía y Shift+Enter hace salto de línea.
+              // En el celular no hay Shift: Enter mandaba el mensaje a medio
+              // escribir. Ahí Enter es salto de línea y se envía con el botón,
+              // igual que en WhatsApp.
+              const tactil = window.matchMedia("(pointer: coarse)").matches;
+              if (e.key === "Enter" && !e.shiftKey && !tactil) {
                 e.preventDefault();
                 void enviar();
               }

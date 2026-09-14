@@ -73,7 +73,9 @@ export async function avisar(aviso: Aviso): Promise<{ enviados: number; fallidos
           await webpush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
             carga,
-            { TTL: 60 * 60 * 24 },
+            // urgency high: con el celular en reposo, el sistema entrega de
+            // inmediato en vez de juntar el aviso para más tarde.
+            { TTL: 60 * 60 * 24, urgency: "high" },
           );
           enviados++;
         } catch (e) {

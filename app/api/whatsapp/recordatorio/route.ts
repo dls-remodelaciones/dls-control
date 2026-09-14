@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   const ahora = Date.now();
   const { data: conFecha } = await db
     .from("leads")
-    .select("id, nombre, proxima_accion, fecha_proxima_accion")
+    .select("id, nombre, proxima_accion, fecha_proxima_accion, estado")
     .gt("fecha_proxima_accion", new Date(ahora).toISOString())
     .lte("fecha_proxima_accion", new Date(ahora + 3_600_000).toISOString())
     .limit(100);

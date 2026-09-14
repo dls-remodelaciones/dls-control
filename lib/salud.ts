@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { diferenciasConfig } from "@/lib/paridad";
 import { HOSTS_CRITICOS, scriptsLocales } from "@/lib/scripts-sitio";
+import { revisarDatosGoogle } from "@/lib/datos-google";
 import { atrasadas, leerLatidos } from "@/lib/latidos";
 import { config } from "@/lib/negocio";
 import { BUCKET as BUCKET_RESPALDOS, DIAS_SIN_RESPALDO, ultimoRespaldo } from "@/lib/respaldo";
@@ -223,7 +224,27 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
 
     // Los scripts que pide la portada: si falta uno, el cotizador o el chatbot se apagan en silencio.
     if (home.ok) {
-      const srcs = scriptsLocales(await home.text(), SITIO, HOSTS_CRITICOS);
+      const htmlHome = await home.text();
+      const srcs = scriptsLocales(htmlHome, SITIO, HOSTS_CRITICOS);
+
+      // Datos para Google: JSON válido, con preguntas frecuentes y el teléfono de la empresa.
+      const g = revisarDatosGoogle(htmlHome);
+      const telefonoMal = Boolean(numeroMeta && g.telefono && g.telefono !== numeroMeta);
+      anotar(
+        "Datos para Google",
+        g.bloques > 0 && g.invalidos === 0 && g.tienePreguntas && Boolean(g.telefono) && !telefonoMal,
+        g.bloques === 0
+          ? "La portada perdió los datos para Google (teléfono, dirección, preguntas frecuentes)."
+          : g.invalidos > 0
+            ? `${g.invalidos} bloque(s) de datos para Google tienen un error de formato: Google los ignora.`
+            : !g.telefono
+              ? "Los datos para Google no traen el teléfono del negocio."
+              : telefonoMal
+                ? `Google muestra el teléfono +${g.telefono}, pero el WhatsApp de la empresa es +${numeroMeta}.`
+                : !g.tienePreguntas
+                  ? "Los datos para Google ya no traen las preguntas frecuentes."
+                  : "Datos para Google válidos, con el teléfono de la empresa y las preguntas frecuentes.",
+      );
       const rotos = (
         await Promise.all(
           srcs.map(async (src) => {

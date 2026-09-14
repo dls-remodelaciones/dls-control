@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { pedirJson } from "@/lib/pedir";
 
 /**
  * Activar los avisos al celular.
@@ -53,7 +54,19 @@ export default function Avisos() {
 
       const reg = await navigator.serviceWorker.register("/sw.js");
       const sub = await reg.pushManager.getSubscription();
-      setEstado(sub && Notification.permission === "granted" ? "activo" : "apagado");
+      const activo = Boolean(sub && Notification.permission === "granted");
+      setEstado(activo ? "activo" : "apagado");
+      // Cada vez que se abre el panel se vuelve a registrar este dispositivo en
+      // el servidor. Si el servidor lo había borrado (un envío fallido, un
+      // cambio de suscripción del navegador), el teléfono creía tener avisos
+      // activos y no le llegaba ninguno. Registrar dos veces no duplica.
+      if (activo && sub) {
+        void pedirJson("/api/push/suscribir", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${await jwt()}`, "Content-Type": "application/json" },
+          body: JSON.stringify(sub.toJSON()),
+        });
+      }
     })().catch(() => setEstado("no_soportado"));
   }, []);
 
@@ -70,12 +83,11 @@ export default function Avisos() {
         (await reg.pushManager.getSubscription()) ??
         (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: aBytes(CLAVE_PUBLICA) }));
 
-      const r = await fetch("/api/push/suscribir", {
+      const j = await pedirJson("/api/push/suscribir", {
         method: "POST",
         headers: { Authorization: `Bearer ${await jwt()}`, "Content-Type": "application/json" },
         body: JSON.stringify(sub.toJSON()),
       });
-      const j = await r.json();
       if (!j.ok) {
         setAviso(j.detalle ?? j.error ?? "No se pudo registrar este dispositivo.");
         return setEstado("apagado");
@@ -89,11 +101,10 @@ export default function Avisos() {
   }
 
   async function probar() {
-    const r = await fetch("/api/push/probar", {
+    const j = await pedirJson("/api/push/probar", {
       method: "POST",
       headers: { Authorization: `Bearer ${await jwt()}` },
     });
-    const j = await r.json();
     setAviso(j.ok ? "Te mandé un aviso de prueba." : j.detalle ?? "El aviso de prueba no salió.");
   }
 
