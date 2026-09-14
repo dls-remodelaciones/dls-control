@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { DIAS_SILENCIO, diasSinLeads, type EstadoNombre } from "@/lib/novedades";
 import { CLAVE as CLAVE_CORREOS, limite, proximoReinicio, vigente, type Uso } from "@/lib/correos";
 
 /**
@@ -55,7 +56,7 @@ export function leerSitio(lead: string, cotizador: string) {
   };
 }
 
-export async function revisarSalud(): Promise<Chequeo[]> {
+export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta: EstadoNombre | null }> {
   const chequeos: Chequeo[] = [];
   const anotar = (nombre: string, ok: boolean, detalle: string) => chequeos.push({ nombre, ok, detalle });
 
@@ -78,6 +79,21 @@ export async function revisarSalud(): Promise<Chequeo[]> {
     const subs = await db.from("push_subs").select("id", { count: "exact", head: true });
     suscritos = subs.count ?? 0;
 
+    // Silencio: varios días sin ningún lead casi siempre es algo roto.
+    const { data: ultimo } = await db.from("leads").select("creado").order("creado", { ascending: false }).limit(1);
+    const dias = diasSinLeads((ultimo?.[0]?.creado as string | undefined) ?? null, new Date());
+    if (dias !== null) {
+      anotar(
+        "Leads entrando",
+        dias < DIAS_SILENCIO,
+        dias === 0
+          ? "Entró al menos uno en las últimas 24 horas."
+          : dias < DIAS_SILENCIO
+            ? `El último entró hace ${dias} ${dias === 1 ? "día" : "días"}.`
+            : `No entra ningún lead hace ${dias} días. Prueba el cotizador y el chatbot del sitio: algo puede estar roto.`,
+      );
+    }
+
     // Cupo de EmailJS. Se avisa al 80 %: con el tope encima ya no hay margen
     // para cambiar de plan antes de que los correos dejen de salir.
     const { data: fila } = await db.from("config").select("valor").eq("clave", CLAVE_CORREOS).maybeSingle();
@@ -99,13 +115,24 @@ export async function revisarSalud(): Promise<Chequeo[]> {
   // 3. WhatsApp: token vivo y número correcto.
   const token = env("WA_ACCESS_TOKEN");
   let numeroMeta = "";
+  let nombreMeta: EstadoNombre | null = null;
   if (token && env("WA_PHONE_NUMBER_ID")) {
     try {
-      const r = await traer(`${GRAPH}/${env("WA_PHONE_NUMBER_ID")}?fields=display_phone_number`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const j = (await r.json()) as { display_phone_number?: string; error?: { message?: string } };
+      const r = await traer(
+        `${GRAPH}/${env("WA_PHONE_NUMBER_ID")}?fields=display_phone_number,verified_name,name_status,new_name_status`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const j = (await r.json()) as {
+        display_phone_number?: string;
+        verified_name?: string;
+        name_status?: string;
+        new_name_status?: string;
+        error?: { message?: string };
+      };
       numeroMeta = soloDigitos(j.display_phone_number ?? "");
+      if (r.ok) {
+        nombreMeta = { nombre: j.verified_name ?? "", estado: j.name_status ?? "", nuevo: j.new_name_status ?? "" };
+      }
       anotar(
         "WhatsApp: token",
         r.ok,
@@ -185,5 +212,5 @@ export async function revisarSalud(): Promise<Chequeo[]> {
     suscritos > 0 ? `${suscritos} dispositivo(s) suscrito(s).` : "Ningún dispositivo tiene los avisos activados.",
   );
 
-  return chequeos;
+  return { chequeos, nombreMeta };
 }
