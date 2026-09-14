@@ -36,7 +36,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const crudo = await req.text();
 
-  if (!firmaValida(crudo, req.headers.get("x-hub-signature-256"), process.env.FB_APP_SECRET)) {
+  // Messenger y WhatsApp viven en la misma app de Meta ("DLS Control"), a
+  // diferencia de Instagram que tiene una app separada: es la misma clave.
+  const appSecret = process.env.FB_APP_SECRET || process.env.WA_APP_SECRET;
+  if (!firmaValida(crudo, req.headers.get("x-hub-signature-256"), appSecret)) {
     return new NextResponse("firma_invalida", { status: 401 });
   }
 
