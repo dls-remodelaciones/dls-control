@@ -96,6 +96,7 @@ Daniel ────> "+ Anotar lead" ──────────────�
 | `GET/POST /api/instagram/webhook` | Meta | verify token / firma HMAC |
 | `GET/POST /api/facebook/webhook` | Meta | verify token / firma HMAC |
 | `GET/POST /api/whatsapp/conversacion` | panel | sesión |
+| `POST /api/dm/enviar` | panel | sesión |
 | `POST /api/push/suscribir`, `/api/push/probar` | panel | sesión |
 | `POST /api/correos/usado`, `/api/errores` | sitio | origen + token + tope |
 | `GET /api/diagnostico/fichas`, `POST .../aplicar` | Daniel | sesión |
@@ -138,9 +139,14 @@ WhatsApp viven en la misma app de Meta, así que el webhook cae de vuelta en `WA
 Si algún día Messenger se muda a su propia app, hay que crearla.
 La revisión diaria vigila que estén todas (`lib/salud.ts`).
 Opcionales: `PANEL_EMAILS`, `CRON_SECRET`, `EMAILJS_LIMITE`, `EMAILJS_DIA_REINICIO`.
-Pendiente: `IG_ACCESS_TOKEN`/`FB_PAGE_ACCESS_TOKEN` (identificadores de acceso) — no se
-guardaron todavía; se generan de nuevo en el panel de Meta el día que se implemente responder
-DM desde el panel.
+Pendiente: `IG_ACCESS_TOKEN` y `FB_PAGE_ACCESS_TOKEN`. **El código para responder DM ya está**
+(`lib/dm.ts` + `POST /api/dm/enviar`, con pruebas); lo único que falta son estos dos
+identificadores de acceso, y cada uno se genera en su propia app de Meta: el de Instagram en
+"DLS Control-IG", el de la página en "DLS Control" → Casos de uso → Messenger → paso 2. Sin
+ellos el envío responde `sin_configuracion` diciendo cuál falta.
+**Ojo con la asimetría**: con el identificador puesto, Instagram funciona de inmediato con
+cualquier cliente (permisos estándar), mientras que Messenger seguirá rechazando los envíos a
+quien no tenga un rol en la app hasta que Meta apruebe la revisión de `pages_messaging`.
 
 ## Deudas conocidas
 
