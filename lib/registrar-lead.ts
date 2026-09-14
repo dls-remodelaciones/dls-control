@@ -54,6 +54,8 @@ export interface EntradaLead {
   cotizacion?: unknown;
   /** Texto tal cual lo escribió la persona. Hoy lo usa WhatsApp. */
   mensaje?: unknown;
+  /** Id del mensaje en el canal de origen (WhatsApp). Se guarda para no registrar dos veces un reintento. */
+  id_externo?: unknown;
   [k: string]: unknown;
 }
 
@@ -255,7 +257,14 @@ export async function registrarLead(body: EntradaLead, db = supabaseAdmin()): Pr
       canal: lead.canal,
       // Si la persona escribió algo (WhatsApp), se guarda su texto tal cual.
       // Para los formularios se guarda el envío completo, que es lo auditable.
-      asunto: mensaje ? "Mensaje de " + lead.canal : creado ? "Lead nuevo" : "Lead actualizado",
+      // Con id externo (WhatsApp), el asunto es "whatsapp:<id>": así se detecta un reintento de Meta.
+      asunto: txt(body.id_externo, 120)
+        ? `${lead.canal}:${txt(body.id_externo, 120)}`
+        : mensaje
+          ? "Mensaje de " + lead.canal
+          : creado
+            ? "Lead nuevo"
+            : "Lead actualizado",
       cuerpo: mensaje || JSON.stringify(body).slice(0, 4000),
       enviado_por: "sistema",
     });

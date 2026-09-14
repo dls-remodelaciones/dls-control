@@ -65,6 +65,9 @@ export function dbFalsa(leadsIniciales: Fila[] = []) {
     const filas = (tablas[tabla] ??= []);
     return {
       select: () => ({
+        eq: (col: string, val: unknown) => ({
+          limit: async (k: number) => ({ data: filas.filter((f) => f[col] === val).slice(0, k), error: null }),
+        }),
         or: (filtro: string) => ({
           limit: async (k: number) => {
             try {

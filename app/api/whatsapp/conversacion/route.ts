@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { usuarioDeLaPeticion } from "@/lib/sesion";
 import { BUCKET as BUCKET_ADJUNTOS, separarAdjunto } from "@/lib/adjuntos";
@@ -6,6 +6,7 @@ import {
   enviarTexto,
   enviarPlantilla,
   listarPlantillas,
+  marcarLeido,
   plantillaRellena,
   ventanaAbierta,
   whatsappConfigurado,
@@ -34,6 +35,7 @@ type Mensaje = {
   cuerpo: string | null;
   enviado_por: string | null;
   creado: string;
+  asunto?: string | null;
 };
 
 /** El último mensaje que ESCRIBIÓ la persona. Es lo que abre la ventana. */
@@ -44,6 +46,27 @@ function ultimoEntrante(mensajes: Mensaje[]): string | null {
 }
 
 /**
+ * Enlaces firmados reutilizados mientras les quede vida. Sin esto, cada vez que
+ * el chat se refrescaba (cada 20 s) cada foto recibía una URL nueva y el
+ * celular la volvía a descargar entera.
+ */
+const enlaces = new Map<string, { url: string; hasta: number }>();
+async function enlaceFirmado(db: NonNullable<ReturnType<typeof supabaseAdmin>>, ruta: string) {
+  const guardado = enlaces.get(ruta);
+  if (guardado && guardado.hasta > Date.now()) return { signedUrl: guardado.url };
+  const { data } = await db.storage.from(BUCKET_ADJUNTOS).createSignedUrl(ruta, 3600);
+  if (data?.signedUrl) {
+    // Se reusa por 50 minutos: la firma dura 60, así nunca se entrega una a punto de vencer.
+    enlaces.set(ruta, { url: data.signedUrl, hasta: Date.now() + 50 * 60_000 });
+    if (enlaces.size > 2000) enlaces.clear();
+  }
+  return data;
+}
+
+/** Mensajes de clientes ya marcados como leídos en esta instancia (no repetir la llamada a Meta). */
+const marcados = new Set<string>();
+
+/**
  * Fotos, audios y documentos que mandó el cliente (ver lib/adjuntos.ts): se
  * quita la marca del texto y se agrega un enlace firmado que dura una hora.
  */
@@ -52,7 +75,7 @@ async function conAdjuntos(db: NonNullable<ReturnType<typeof supabaseAdmin>>, me
     mensajes.map(async (m) => {
       const { texto, ruta } = separarAdjunto(m.cuerpo);
       if (!ruta) return { ...m, adjunto: null };
-      const { data } = await db.storage.from(BUCKET_ADJUNTOS).createSignedUrl(ruta, 3600);
+      const data = await enlaceFirmado(db, ruta);
       const ext = ruta.split(".").pop()?.toLowerCase() ?? "";
       const tipo = ["jpg", "jpeg", "png", "webp"].includes(ext)
         ? "imagen"
@@ -88,7 +111,7 @@ async function cargar(leadId: string) {
 
   const { data: mensajes, error: e2 } = await db
     .from("mensajes")
-    .select("id, direccion, canal, cuerpo, enviado_por, creado")
+    .select("id, direccion, canal, cuerpo, enviado_por, creado, asunto")
     .eq("lead_id", leadId)
     .eq("canal", "whatsapp")
     .order("creado", { ascending: false })
@@ -116,6 +139,18 @@ export async function GET(req: NextRequest) {
   if ("error" in r) return fallaDeCarga(r.error);
 
   const ultimo = ultimoEntrante(r.mensajes);
+
+  // Tics azules: al abrir el chat (?leido=1) se marca como leído el último mensaje del cliente.
+  if (req.nextUrl.searchParams.get("leido") === "1") {
+    const idMeta = r.mensajes
+      .filter((m) => m.direccion === "entrante" && m.asunto?.startsWith("whatsapp:"))
+      .sort((a, b) => Date.parse(b.creado) - Date.parse(a.creado))[0]
+      ?.asunto?.slice("whatsapp:".length);
+    if (idMeta && !marcados.has(idMeta)) {
+      marcados.add(idMeta);
+      after(() => marcarLeido(idMeta).then(() => undefined));
+    }
+  }
   const ventana = ventanaAbierta(ultimo);
 
   // Con la ventana cerrada, lo único que Meta acepta son plantillas aprobadas.

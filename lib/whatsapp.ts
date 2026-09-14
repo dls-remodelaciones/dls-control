@@ -90,7 +90,23 @@ export const PLANTILLAS_APROBADAS: Plantilla[] = [
  * calidad y la desactiva), y una lista escrita a mano diría que todo está bien
  * mientras los envíos fallan.
  */
+/**
+ * Caché de 10 minutos: con un chat abierto y la ventana cerrada, el panel pide
+ * la conversación cada 20 segundos, y cada vez se le preguntaba a Meta por las
+ * plantillas — 3 llamadas por minuto para una lista que cambia cada semanas.
+ */
+let cachePlantillas: { hasta: number; valor: { ok: true; plantillas: Plantilla[] } } | null = null;
+
 export async function listarPlantillas(): Promise<
+  { ok: true; plantillas: Plantilla[] } | { ok: false; error: string; detalle: string }
+> {
+  if (cachePlantillas && cachePlantillas.hasta > Date.now()) return cachePlantillas.valor;
+  const r = await listarPlantillasEnVivo();
+  if (r.ok) cachePlantillas = { hasta: Date.now() + 10 * 60_000, valor: r };
+  return r;
+}
+
+async function listarPlantillasEnVivo(): Promise<
   { ok: true; plantillas: Plantilla[] } | { ok: false; error: string; detalle: string }
 > {
   const { token, waba } = credenciales();
@@ -221,6 +237,28 @@ export function ventanaAbierta(ultimoEntrante: string | null | undefined): {
 }
 
 /** Envía un texto libre. Solo funciona con la ventana abierta. */
+/**
+ * Marca un mensaje del cliente como leído: le aparecen los dos tics azules.
+ * Para quien escribe a una empresa, ver que lo leyeron ya es una respuesta, y
+ * baja la ansiedad de "¿me habrán visto?" mientras Daniel prepara la respuesta.
+ * Nunca lanza: si Meta lo rechaza, no pasa nada visible.
+ */
+export async function marcarLeido(idMensajeMeta: string): Promise<boolean> {
+  const { token, numeroId } = credenciales();
+  if (!token || !numeroId || !idMensajeMeta) return false;
+  try {
+    const r = await fetch(`${GRAPH}/${numeroId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", status: "read", message_id: idMensajeMeta }),
+      signal: AbortSignal.timeout(8000),
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function enviarTexto(telefono: string, texto: string): Promise<Envio> {
   const { token, numeroId } = credenciales();
   if (!token || !numeroId) {

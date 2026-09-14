@@ -92,7 +92,9 @@ export default function Conversacion({
   const cargar = useCallback(async () => {
     const jwt = await conSesion();
     if (!jwt) return setAviso("Tu sesión expiró. Vuelve a entrar.");
-    const r = await fetch(`/api/whatsapp/conversacion?lead_id=${encodeURIComponent(leadId)}`, {
+    // leido=1: con el chat abierto a la vista, el cliente ve los tics azules.
+    const visible = typeof document === "undefined" || document.visibilityState === "visible";
+    const r = await fetch(`/api/whatsapp/conversacion?lead_id=${encodeURIComponent(leadId)}${visible ? "&leido=1" : ""}`, {
       headers: { Authorization: `Bearer ${jwt}` },
     });
     const j = await r.json();
