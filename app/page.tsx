@@ -9,6 +9,7 @@ import NuevoLead from "./nuevo";
 import Avisos from "./avisos";
 import { aCsv } from "@/lib/exportar";
 import { coincide } from "@/lib/busqueda";
+import Estado from "./estado";
 
 type Proyecto = {
   tipo: string;
@@ -336,6 +337,9 @@ export default function Pagina() {
             ))}
           </ul>
         )}
+        {tab === "hoy" && !cargando && <Estado />}
+        {/* Espacio para que la barra inferior no tape lo último. */}
+        <div className="h-20" />
       </main>
 
       {/* Pestañas inferiores — la navegación en celular */}
