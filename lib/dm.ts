@@ -93,6 +93,16 @@ export async function enviarDM(sesionId: string | null | undefined, texto: strin
     };
   }
 
+  // Un identificador mal pegado (cortado, o con otra cosa encima) hace que Meta
+  // responda "Cannot parse access token", que suena a problema del código y es
+  // del valor guardado. Se revisa la FORMA, nunca el contenido: los de Instagram
+  // Login empiezan con "IG", los de página con "EAA", y ambos pasan de 100
+  // caracteres. Así se distingue un pegado incompleto de un permiso que falta.
+  const forma = revisarForma(token);
+  if (forma) {
+    return { ok: false, error: "identificador_mal_guardado", detalle: `${forma} Hay que generarlo de nuevo y volver a guardarlo en ${conf.env}.` };
+  }
+
   const cuerpo = texto.trim();
   if (!cuerpo) return { ok: false, error: "mensaje_vacio", detalle: "No hay nada que enviar." };
 
@@ -119,6 +129,21 @@ export async function enviarDM(sesionId: string | null | undefined, texto: strin
   } catch (e) {
     return { ok: false, error: "sin_conexion", detalle: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * ¿El identificador tiene forma de identificador de Meta? Devuelve null si se ve
+ * bien, o una explicación de qué le pasa. Nunca devuelve el valor: solo el largo
+ * y si el comienzo es el esperado, que es lo que delata un pegado a medias.
+ */
+export function revisarForma(token: string): string | null {
+  if (token.length < 50) {
+    return `El identificador guardado tiene solo ${token.length} caracteres, y uno de Meta pasa de 100: quedó cortado al copiarlo.`;
+  }
+  if (!/^(IG|EAA)/.test(token)) {
+    return `El identificador guardado (${token.length} caracteres) no empieza como los de Meta, que parten en "IG" o "EAA": parece que se copió otra cosa.`;
+  }
+  return null;
 }
 
 /**

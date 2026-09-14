@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { enviarDM, leerSesion, envioConfigurado } from "../lib/dm";
+import { enviarDM, leerSesion, envioConfigurado, revisarForma } from "../lib/dm";
 
 /**
  * Responder un DM desde el panel. Lo que más importa acá es que los errores de
@@ -17,9 +17,14 @@ function metaResponde(status: number, cuerpo: unknown) {
     new Response(JSON.stringify(cuerpo), { status, headers: { "Content-Type": "application/json" } })) as typeof fetch;
 }
 
+// Con forma de identificador real: si no, la revisión de forma los rechaza
+// antes de llegar a Meta, que es justamente lo que se quiere en producción.
+const IG = "IG" + "Q".repeat(180);
+const FB = "EAA" + "Z".repeat(180);
+
 beforeEach(() => {
-  process.env.IG_ACCESS_TOKEN = "token-ig-de-prueba";
-  process.env.FB_PAGE_ACCESS_TOKEN = "token-fb-de-prueba";
+  process.env.IG_ACCESS_TOKEN = IG;
+  process.env.FB_PAGE_ACCESS_TOKEN = FB;
 });
 
 afterEach(() => {
@@ -68,9 +73,9 @@ test("el envío usa el identificador de acceso del canal que corresponde", async
   }) as unknown as typeof fetch;
 
   await enviarDM("ig:1", "hola");
-  assert.match(visto, /token-ig-de-prueba/, "Instagram usa su propio identificador");
+  assert.equal(visto, `Bearer ${IG}`, "Instagram usa su propio identificador");
   await enviarDM("fb:1", "hola");
-  assert.match(visto, /token-fb-de-prueba/, "Messenger usa el de la página");
+  assert.equal(visto, `Bearer ${FB}`, "Messenger usa el de la página");
 });
 
 test("cada canal habla con su propio host de Meta", async () => {
@@ -94,6 +99,35 @@ test("sin identificador de acceso se dice cuál falta, no un error genérico", a
   const r = await enviarDM("ig:1", "hola");
   assert.equal(r.ok === false && r.error, "sin_configuracion");
   assert.match(r.ok === false ? r.detalle : "", /IG_ACCESS_TOKEN/);
+});
+
+test("un identificador cortado al copiarlo se detecta antes de llamar a Meta", async () => {
+  // Meta responde "Cannot parse access token", que parece un error del código.
+  // Vale más decir la verdad: el valor guardado quedó a medias.
+  process.env.IG_ACCESS_TOKEN = "IGQVJabc123";
+  let llamo = false;
+  globalThis.fetch = (async () => {
+    llamo = true;
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+
+  const r = await enviarDM("ig:1", "hola");
+  assert.equal(r.ok === false && r.error, "identificador_mal_guardado");
+  assert.match(r.ok === false ? r.detalle : "", /cortado/);
+  assert.match(r.ok === false ? r.detalle : "", /IG_ACCESS_TOKEN/);
+  assert.equal(llamo, false, "no se gasta una llamada a Meta");
+});
+
+test("si se copió otra cosa en vez del identificador, se dice", async () => {
+  process.env.IG_ACCESS_TOKEN = "https://www.instagram.com/direct/inbox/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const r = await enviarDM("ig:1", "hola");
+  assert.equal(r.ok === false && r.error, "identificador_mal_guardado");
+  assert.match(r.ok === false ? r.detalle : "", /IG|EAA/);
+});
+
+test("la revisión de forma acepta los identificadores de verdad", () => {
+  assert.equal(revisarForma(IG), null);
+  assert.equal(revisarForma(FB), null);
 });
 
 test("a un lead sin conversación no se le intenta escribir", async () => {
