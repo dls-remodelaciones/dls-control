@@ -7,9 +7,11 @@ import NuevoLead from "./nuevo";
 import Avisos from "./avisos";
 import Estado from "./estado";
 import Ficha from "./ficha-tarjeta";
+import BandejaCanales from "./bandeja-canales";
 import { Marco, Vacia, SinConexion, Aviso } from "./piezas";
 import { useLeads, TOPE_LEADS } from "./use-leads";
 import { leadsVisibles } from "@/lib/visibles";
+import { agruparPorCanal } from "@/lib/agrupar-canal";
 import type { Fila, Tab } from "./tipos";
 import { aCsv } from "@/lib/exportar";
 
@@ -274,6 +276,17 @@ export default function Pagina() {
           ) : (
             <Vacia tab={tab} enNutricion={conteos.b} />
           )
+        ) : tab === "bandeja" ? (
+          /* La bandeja va partida por canal: con cinco entradas al mismo buzón,
+             una sola lista no deja ver de dónde viene cada cliente ni cuál
+             llegó primero. En "Hoy" no se agrupa a propósito — ahí manda la
+             urgencia, no el origen. */
+          <BandejaCanales
+            grupos={agruparPorCanal(visibles, sinResponder)}
+            sinResponder={sinResponder}
+            recargar={cargar}
+            enfoque={enfoque}
+          />
         ) : (
           <ul className="space-y-2.5">
             {visibles.map((f) => (

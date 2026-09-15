@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { telHref, waHref, config } from "@/lib/negocio";
 import { comoResponder } from "@/lib/canales";
 import { urgenciaDeEspera } from "@/lib/urgencia";
+import { cuandoLlego } from "@/lib/cuando";
 import Canal from "./canal";
 import ResponderDM from "./responder-dm";
 import Conversacion from "./conversacion";
@@ -191,10 +192,12 @@ export default function Ficha({
               {hace(esperaDesde)}
             </div>
           ) : (
-            // Antigüedad: un A de hace 5 días no es lo mismo que uno de hace una hora.
+            /* Cuándo llegó, con hora. "hace 14 h" y "hace 2 d" puestos uno
+               sobre otro no dejan claro el orden de llegada; "hoy 14:32" sí, y
+               era justo lo que se perdía en una bandeja de cinco canales. */
             f.creado && (
-              <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-muted)" }}>
-                entró {hace(f.creado)}
+              <div className="mt-0.5 pr-1.5 text-[11px] tabular-nums" style={{ color: "var(--color-muted)" }}>
+                {cuandoLlego(f.creado)}
               </div>
             )
           )}
