@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { telHref, waHref, config } from "@/lib/negocio";
 import { comoResponder } from "@/lib/canales";
+import { urgenciaDeEspera } from "@/lib/urgencia";
+import Canal from "./canal";
 import ResponderDM from "./responder-dm";
 import Conversacion from "./conversacion";
 import FichaDetalle from "./ficha";
@@ -94,20 +96,43 @@ export default function Ficha({
   // Sin teléfono, pero escribió por una red donde sí se le puede contestar.
   const responder = f.telefono ? null : comoResponder(f.canal);
 
+  /**
+   * Tres pesos visuales, en vez de treinta tarjetas idénticas.
+   *
+   * La lista se veía plana porque todas las fichas pesaban lo mismo: la que
+   * escribió hace diez minutos y está esperando se veía igual que un formulario
+   * abandonado hace tres semanas. El orden ya era correcto; lo que faltaba era
+   * que se notara sin leer.
+   *
+   *  1 — te escribió y espera. Tiene un plazo corriendo: manda sobre todo.
+   *  2 — clasificación A lista para llamar. Importa, pero no vence hoy.
+   *  3 — el resto.
+   */
+  const nivel = esperaDesde ? 1 : f.clasificacion === "A" && f.apto_para_llamar ? 2 : 3;
+  const urgencia = esperaDesde ? urgenciaDeEspera(esperaDesde) : null;
+
   return (
     <li
       ref={tarjeta}
       className="scroll-mt-20 border"
       style={{
-        background: "var(--color-surface)",
-        borderColor: "var(--color-line)",
-        borderLeft: `3px solid ${color}`,
+        background: nivel === 1 ? "var(--color-warm)" : "var(--color-surface)",
+        borderColor: nivel === 1 ? "var(--color-line)" : "var(--color-linesoft)",
+        borderLeft: `${nivel === 1 ? 5 : 3}px solid ${nivel === 1 ? "var(--color-a)" : color}`,
         boxShadow: enfocado ? "0 0 0 2px var(--color-brand)" : undefined,
       }}
     >
       <div className="flex items-start gap-2.5 px-3.5 py-3">
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-semibold tracking-[-0.01em] break-words">
+          {/* De dónde escribió. Va arriba del nombre porque es lo primero que se
+              busca al mirar la lista: por qué canal hay que contestarle. */}
+          <div className="mb-1 flex items-center gap-2">
+            <Canal canal={f.canal} />
+          </div>
+          <div
+            className="font-semibold tracking-[-0.01em] break-words"
+            style={{ fontSize: nivel === 1 ? "16.5px" : nivel === 2 ? "15.5px" : "14.5px" }}
+          >
             {f.nombre}
             {f.comuna && (
               <span className="font-light" style={{ color: "var(--color-muted)" }}>
@@ -139,6 +164,18 @@ export default function Ficha({
                     .join(" "),
                 )
                 .join(" · ")}
+            </div>
+          )}
+          {/* El plazo real, no solo cuánto lleva esperando. Meta cierra la
+              conversación a las 24 horas y después no se puede escribir texto
+              libre por ningún canal: eso es lo que hay que ver antes de decidir
+              a quién contestar primero. */}
+          {urgencia && (
+            <div
+              className="mt-1.5 text-[12px] font-semibold tabular-nums"
+              style={{ color: urgencia.alarma ? "var(--color-a)" : "var(--color-b)" }}
+            >
+              {urgencia.texto}
             </div>
           )}
         </div>
