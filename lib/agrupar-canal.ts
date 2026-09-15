@@ -45,9 +45,22 @@ function tiempo(iso: string | null | undefined): number {
   return Number.isFinite(t) ? t : 0;
 }
 
+export interface OpcionesAgrupar<T> {
+  /**
+   * Con qué fecha ordenar a los que NO esperan respuesta, de la más próxima a
+   * la más lejana.
+   *
+   * Por omisión se usa la fecha de entrada al revés (lo último primero), que es
+   * lo correcto en la bandeja. Pero en "Para hoy" lo que manda es la hora del
+   * recordatorio y en orden contrario: lo que ya venció va arriba, no abajo.
+   */
+  ascPor?: (l: T) => string | null | undefined;
+}
+
 export function agruparPorCanal<T extends LeadAgrupable>(
   filas: T[],
   sinResponder: Map<string, string>,
+  opciones: OpcionesAgrupar<T> = {},
 ): GrupoCanal<T>[] {
   const grupos = new Map<string, T[]>();
   for (const f of filas) {
@@ -69,7 +82,8 @@ export function agruparPorCanal<T extends LeadAgrupable>(
       if (eb && !ea) return 1;
       // Entre los que esperan: el que lleva más rato, arriba.
       if (ea && eb) return tiempo(ea) - tiempo(eb);
-      // Entre los demás: lo último que entró, arriba.
+      // Entre los demás: la fecha que pidió quien llama, o lo último que entró.
+      if (opciones.ascPor) return tiempo(opciones.ascPor(a)) - tiempo(opciones.ascPor(b));
       return tiempo(b.creado) - tiempo(a.creado);
     });
 

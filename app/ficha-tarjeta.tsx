@@ -35,12 +35,18 @@ export default function Ficha({
   esperaDesde,
   recargar,
   enfocado = false,
+  ocultarCanal = false,
 }: {
   f: Fila;
   esperaDesde?: string;
   recargar: () => void;
   /** Viene de un aviso del celular: se lleva a la vista y se abre. */
   enfocado?: boolean;
+  /**
+   * Cuando la tarjeta ya vive dentro de la sección de su canal, repetir el
+   * nombre del canal en cada una es ruido: la cabecera de arriba ya lo dijo.
+   */
+  ocultarCanal?: boolean;
 }) {
   // La conversación se carga solo cuando se abre: son decenas de fichas en
   // pantalla y no tiene sentido pedirle a la base el historial de todas.
@@ -127,9 +133,11 @@ export default function Ficha({
         <div className="min-w-0 flex-1">
           {/* De dónde escribió. Va arriba del nombre porque es lo primero que se
               busca al mirar la lista: por qué canal hay que contestarle. */}
-          <div className="mb-1 flex items-center gap-2">
-            <Canal canal={f.canal} />
-          </div>
+          {!ocultarCanal && (
+            <div className="mb-1 flex items-center gap-2">
+              <Canal canal={f.canal} />
+            </div>
+          )}
           <div
             className="font-semibold tracking-[-0.01em] break-words"
             style={{ fontSize: nivel === 1 ? "16.5px" : nivel === 2 ? "15.5px" : "14.5px" }}

@@ -239,11 +239,15 @@ export default function Pagina() {
             <h2 className="mb-2 text-[11px] font-semibold tracking-[0.12em] uppercase" style={{ color: "var(--color-b)" }}>
               Para hoy · {paraHoy.length}
             </h2>
-            <ul className="space-y-2.5">
-              {paraHoy.map((f) => (
-                <Ficha key={f.id} f={f} recargar={cargar} />
-              ))}
-            </ul>
+            {/* Acá el orden lo pone la hora del recordatorio, no la de entrada:
+                lo que ya venció va arriba. */}
+            <BandejaCanales
+              grupos={agruparPorCanal(paraHoy, sinResponder, { ascPor: (f) => f.fecha_proxima_accion })}
+              sinResponder={sinResponder}
+              recargar={cargar}
+              compacto
+              prefijo="hoy-"
+            />
           </section>
         )}
 
@@ -254,11 +258,13 @@ export default function Pagina() {
             <h2 className="mb-2 text-[11px] font-semibold tracking-[0.12em] uppercase" style={{ color: "var(--color-a)" }}>
               Te escribieron · {esperando.length}
             </h2>
-            <ul className="space-y-2.5">
-              {esperando.map((f) => (
-                <Ficha key={f.id} f={f} esperaDesde={sinResponder.get(f.id)} recargar={cargar} />
-              ))}
-            </ul>
+            <BandejaCanales
+              grupos={agruparPorCanal(esperando, sinResponder)}
+              sinResponder={sinResponder}
+              recargar={cargar}
+              compacto
+              prefijo="esp-"
+            />
           </section>
         )}
 
@@ -277,16 +283,31 @@ export default function Pagina() {
             <Vacia tab={tab} enNutricion={conteos.b} />
           )
         ) : tab === "bandeja" ? (
-          /* La bandeja va partida por canal: con cinco entradas al mismo buzón,
-             una sola lista no deja ver de dónde viene cada cliente ni cuál
-             llegó primero. En "Hoy" no se agrupa a propósito — ahí manda la
-             urgencia, no el origen. */
+          /* Partida por canal: con cinco entradas al mismo buzón, una sola
+             lista no deja ver de dónde viene cada cliente ni cuál llegó antes. */
           <BandejaCanales
             grupos={agruparPorCanal(visibles, sinResponder)}
             sinResponder={sinResponder}
             recargar={cargar}
             enfoque={enfoque}
           />
+        ) : tab === "hoy" ? (
+          /* Los que pasaron el filtro completo, también por canal. Van con
+             título propio para que las tres secciones de Hoy se lean igual:
+             primero por qué están acá, después de dónde vienen. */
+          <section>
+            <h2 className="mb-2 text-[11px] font-semibold tracking-[0.12em] uppercase" style={{ color: "var(--color-a)" }}>
+              Listos para llamar · {visibles.length}
+            </h2>
+            <BandejaCanales
+              grupos={agruparPorCanal(visibles, sinResponder)}
+              sinResponder={sinResponder}
+              recargar={cargar}
+              enfoque={enfoque}
+              compacto
+              prefijo="a-"
+            />
+          </section>
         ) : (
           <ul className="space-y-2.5">
             {visibles.map((f) => (

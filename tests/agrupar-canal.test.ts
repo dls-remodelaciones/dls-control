@@ -138,6 +138,32 @@ test("se cuenta cuántos esperan en cada canal, para el aviso de la cabecera", (
   assert.ok(g[0].masAntiguoEsperando, "tiene que saber desde cuándo espera el más antiguo");
 });
 
+test("en 'Para hoy' manda la hora del recordatorio, y lo vencido va arriba", () => {
+  // Al revés que en la bandeja: acá el orden es ascendente, porque un
+  // recordatorio que venció ayer urge más que uno de esta tarde.
+  type R = L & { vence?: string };
+  const filas: R[] = [
+    { id: "tarde", canal: "whatsapp", creado: haceHoras(2), vence: haceHoras(-6) },
+    { id: "vencido", canal: "whatsapp", creado: haceHoras(80), vence: haceHoras(20) },
+    { id: "mediodia", canal: "whatsapp", creado: haceHoras(50), vence: haceHoras(1) },
+  ];
+  const g = agruparPorCanal(filas, sinNadie, { ascPor: (f) => f.vence });
+  assert.deepEqual(
+    g[0].leads.map((l) => l.id),
+    ["vencido", "mediodia", "tarde"],
+  );
+});
+
+test("con 'ascPor', quien espera respuesta sigue yendo antes que todos", () => {
+  type R = L & { vence?: string };
+  const filas: R[] = [
+    { id: "vencido", canal: "whatsapp", vence: haceHoras(30) },
+    { id: "escribio", canal: "whatsapp", vence: haceHoras(-2) },
+  ];
+  const g = agruparPorCanal(filas, new Map([["escribio", haceHoras(3)]]), { ascPor: (f) => f.vence });
+  assert.equal(g[0].leads[0].id, "escribio", "una persona esperando manda sobre cualquier recordatorio");
+});
+
 test("un lead sin canal no se pierde: queda en su propio grupo visible", () => {
   const g = agruparPorCanal([{ id: "x" }, { id: "y", canal: null }], sinNadie);
   assert.equal(g.length, 1);
