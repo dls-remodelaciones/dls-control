@@ -469,7 +469,9 @@ es lento y puede corromper el proyecto.
 - **Bugs §2.1 números 1, 2, 3, 6 y 7:** ya resueltos. La pantalla es la vista móvil; la barra
   lateral y las 3 columnas serán la vista ≥1024px. No son diseños en conflicto, son dos anchos.
 - **La v1 del repo nunca funcionó:** su `index.html` tenía literalmente `SUPABASE_URL_AQUI` como
-  URL de la base. Quedó intacta en `_legacy/` como referencia.
+  URL de la base. Estuvo guardada en `_legacy/` hasta el 14-sep-2026, cuando se borró: no la
+  usaba nada y tenía un correo personal escrito dentro. Sigue en el historial de git si alguna
+  vez hace falta mirarla (`git log -- _legacy`).
 
 ### Trampas encontradas (para no repetirlas)
 
