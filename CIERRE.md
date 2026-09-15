@@ -8,9 +8,11 @@ un dueño. Nada se marca hecho porque "debería funcionar": se marca cuando el
 criterio se cumple mirando el sistema real. Mientras quede un punto abierto, el
 trabajo no está cerrado.
 
-**Regla que ordena todo lo demás:** cinco de los ocho puntos abiertos dependen de
-un solo trámite, ya enviado. Ver "El cuello de botella". Los otros tres son de
-Daniel y se pueden hacer hoy.
+**Lo que cambió el 15-sep:** el trámite del que dependía todo —la verificación del
+negocio— **está aprobado**. Durante semanas fue el cuello de botella; ya no lo es.
+Ahora el punto más avanzado de la lista es enviar la solicitud de revisión, y el
+más urgente es el botón de WhatsApp del perfil de Instagram, que sigue desviando
+clientes a un privado que no queda registrado.
 
 Última revisión: 2026-09-15.
 
@@ -19,21 +21,21 @@ Daniel y se pueden hacer hoy.
 
 ---
 
-## El cuello de botella
+## El cuello de botella — ✅ destrabado el 2026-09-15
 
-**La verificación del portafolio empresarial ante Meta.** Se hace en Meta
-Business Suite con RUT, razón social y dirección legal de DLS Arquitectura y
-Construcción SpA. **Solo la puede hacer Daniel** — son datos legales y no se
-inventan.
+Durante semanas todo dependió de **la verificación del portafolio empresarial ante
+Meta**, que solo podía hacer Daniel porque son datos legales. Se envió el 14-sep a
+las 21:00 con RUT, razón social y dirección del SII, y **Meta la aprobó antes de las
+07:13 del 15** — menos de doce horas, no los dos días laborables que anunció.
 
-> **Enviada el 2026-09-14 y en revisión.** Meta responde en ~2 días laborables.
-> Todo lo que cuelga de acá queda esperando esa respuesta; no hay nada que hacer
-> mientras, ni forma de apurarlo.
+> Verificado en pantalla: Business Suite → EXPERTOS EN REMODELACIONES → Cuentas de
+> WhatsApp → "Verificación de la empresa: **Verificado**", "Estado de la cuenta:
+> **Aprobada**".
 
-De ella cuelga, en cadena:
+Lo que colgaba de ella, ahora en marcha:
 
-1. Poder **enviar** la solicitud de revisión de la aplicación (hoy el formulario
-   está completo salvo esto, y sin la verificación el botón no se habilita).
+1. **Enviar** la solicitud de revisión de la aplicación: ya se puede. El formulario
+   está completo y la verificación deja de bloquear el botón.
 2. Que Meta apruebe `pages_messaging`.
 3. Que un cliente cualquiera que escriba a la página de Facebook **genere un
    lead** (hoy solo generan lead quienes tengan un rol en la app).
@@ -44,7 +46,8 @@ Instagram ya demostró que, una vez destrabado el permiso, **todo lo demás ya e
 construido y funciona**: el mismo código que responde Instagram responde
 Messenger. No falta programación. Falta el trámite.
 
-> Si solo se puede hacer una cosa, es esta.
+> El trámite ya no es la excusa. Lo que queda de Messenger es enviar la solicitud y
+> esperar a que Meta revise el permiso.
 
 ---
 
@@ -57,11 +60,12 @@ el panel, y la revisión diaria se da cuenta si se cae.**
 |---|---|---|---|---|---|---|
 | Sitio y cotizador | ✅ | ✅ | n/a | ✅ | ✅ | **10/10** |
 | WhatsApp | ✅ | ✅ | ✅ | ✅ | ✅ | **10/10** |
-| Instagram | ✅ | ✅ | ✅ | ✅ | ✅ | **9/10** — el botón del perfil desvía al privado (punto 3) |
+| Instagram | ✅ | ✅ | ✅ | ✅ | ✅ | **9/10** — hay un camino correcto (el enlace wa.me), pero el chip viejo sigue desviando al privado (punto 3) |
 | Correo | ✅ | ✅ | n/a | ✅ | ✅ | **10/10** |
-| Messenger | ⚠️ solo roles | ✅ | ⚠️ bloqueado | ✅ | ✅ | **bloqueado por Meta** |
+| Messenger | ⚠️ solo roles | ✅ | ⚠️ bloqueado | ✅ | ✅ | **esperando el permiso** — la verificación ya no lo bloquea |
 
-Messenger tiene el código completo y probado. Lo único que le falta es el permiso.
+Messenger tiene el código completo y probado. Lo único que le falta es el permiso, y
+la verificación que lo tenía detenido está aprobada desde el 15-sep.
 
 "Se distingue" se agregó el 15-sep: el canal ahora se ve en la tarjeta, la lista
 va agrupada por canal y el aviso al celular dice por dónde entró. Antes el dato
@@ -72,9 +76,13 @@ un buzón donde todo se veía igual.
 
 ## Lo que queda abierto
 
-### 1. Verificar el negocio ante Meta — **enviado el 2026-09-14, en revisión**
-**Listo cuando:** el portafolio aparece verificado en Meta Business Suite.
-**Estado:** "Confirmación de identidad en curso". Meta revisa en ~48 h y notifica.
+### 1. Verificar el negocio ante Meta — ✅ **APROBADO el 2026-09-15**
+**Cómo se verificó:** Meta Business Suite → portafolio EXPERTOS EN REMODELACIONES →
+Cuentas de WhatsApp → DLS Arquitectura y Construcción SpA muestra **Verificación de la
+empresa: Verificado** y **Estado de la cuenta: Aprobada**. Visto en pantalla, no supuesto.
+**Tardó menos de 12 horas**, no los dos días laborables que anunció Meta: se envió el 14 a
+las 21:00 y ya estaba aprobado el 15 a las 07:13.
+**Lo que esto destraba:** los puntos 2, 4 y la cadena de Messenger completa.
 **Lo que costó llegar, para no repetirlo:**
 - El botón "Iniciar verificación" de la solicitud lleva al Centro de seguridad, no al
   formulario. El trámite está **al final** de esa página, en la tarjeta "Verificación de la
@@ -96,9 +104,10 @@ un buzón donde todo se veía igual.
 
 ### 2. Enviar la solicitud de revisión — **Daniel decide, Claude ejecuta**
 **Listo cuando:** la solicitud aparece "En revisión" en Meta for Developers.
-**Bloqueado por:** el punto 1 (enviado, esperando respuesta de Meta) y por que Meta
-registre la llamada de prueba a la API, que tarda hasta 24 h en aparecer y luego
-vale 30 días. Con esas dos cosas, el formulario queda completo.
+**Ya no está bloqueado por la verificación** (aprobada el 15-sep). Queda una sola
+condición: que Meta haya registrado la llamada de prueba a la API, que tarda hasta 24 h en
+aparecer y después vale 30 días. La llamada se hizo el 14-sep cerca de las 16:00 UTC, así
+que debería estar registrada. **Esto pasó a ser el punto más avanzado de la lista.**
 **Cuidado:** es irreversible — enviada, no se puede editar ni cancelar. No se
 envía sin que Daniel vea el formulario completo y lo apruebe.
 
@@ -108,29 +117,52 @@ envía sin que Daniel vea el formulario completo y lo apruebe.
 antes un Gmail personal), el **teléfono de contacto** (+56 9 5638 1974) y la casilla
 "Mostrar información de contacto", que estaba apagada — sin ella el perfil no
 mostraba ningún dato. Verificado en el panel "Contacto" del perfil móvil.
-**Lo que sigue abierto:** el botón de WhatsApp, que es otra vinculación. Se dejó
-vinculado el número de la empresa en Cuenta profesional (con tick verde) y el
-botón siguió abriendo el chat personal.
-**Lo ya descartado, para no repetir camino:**
-- No sale de "Botones de acción" (está en "Ninguno activo").
-- No sale de "Opciones de contacto", que ya tiene los datos correctos.
-- No lo hereda de la página de Facebook, que apunta al número correcto.
-- El campo "Número de WhatsApp" de la web dio "Se ha producido un error" en el
-  primer intento y quedó vinculado en el segundo. El botón no cambió en 1 minuto.
-**Lo que queda por probar:** si era caché de la app (cerrarla del todo y reabrir).
-Si no, desvincular y volver a vincular desde el computador.
+**Paliativo ya puesto (15-sep):** se agregó un **enlace** en el perfil,
+`https://wa.me/56956381974` titulado "WhatsApp". Ese sí manda al número de la
+empresa y sus mensajes **entran al panel** por la Cloud API. Verificado por Daniel.
+Así que hoy el perfil tiene dos caminos a WhatsApp: el enlace (correcto) y el chip
+viejo (al privado).
+
+**Lo que sigue abierto:** el chip blanco con ícono de WhatsApp, en la fila de
+perfiles vinculados, junto al de Facebook. **Siete lugares descartados uno por uno:**
+1. "Botones de acción" → "Ninguno activo".
+2. "Opciones de contacto" → correo y teléfono, ya correctos.
+3. El campo "Número de WhatsApp" de Cuenta profesional → se **desvinculó** por
+   completo y el chip siguió ahí. Ese campo es para anuncios, no para el perfil.
+4. Activos conectados de la cuenta de Instagram → solo la página de Facebook.
+5. Activos conectados de la página de Facebook → solo la cuenta de Instagram.
+6. Enlaces del perfil → solo el sitio y el wa.me nuevo.
+7. Caché de la app → se probó seis horas después, sin cambio.
+
+**Lo único que queda por abrir:** el chip **"+ Agregar"** al final de esa misma
+fila, en el perfil propio (no en la vista de visitante, donde no aparece). Esa fila
+son los perfiles vinculados y se administra desde ahí.
+
+**Dato que puede explicarlo:** hay **dos cuentas de Meta** distintas —
+`d_santos91@hotmail.com` (con un Facebook y un Instagram) y `dls.lehmann@gmail.com`
+(con el Instagram de D.L.S)— y **tres portafolios** de negocio. La vinculación de
+WhatsApp puede vivir del lado de la cuenta de Hotmail, que no se revisó en ningún
+momento.
+
+**Límite real:** ese chip **solo existe dentro de la app móvil**. Se leyó el HTML
+completo del perfil público (828 mil caracteres) y no hay ningún campo de contacto
+del negocio; Instagram lo dice en su propia letra chica. No está en la web, ni en la
+API, ni en Business Suite. Ejecutarlo es de Daniel por fuerza.
 **Por qué importa de verdad:** quien aprieta ese botón escribe a un privado y ese
 mensaje **no entra al panel**: no queda registrado como lead ni avisa nada.
 
-### 4. `FB_PAGE_ACCESS_TOKEN` — **Daniel, pero después del punto 1**
+### 4. `FB_PAGE_ACCESS_TOKEN` — **Daniel, después del punto 2**
 **Listo cuando:** existe en Vercel y la revisión diaria dice "identificador vivo".
-**No hacerlo antes:** sin el permiso aprobado no sirve de nada.
+**No hacerlo antes:** el token se genera en un minuto, pero sin `pages_messaging`
+aprobado solo deja escribirle a quien tenga un rol en la app. Guardarlo antes crea la
+ilusión de que Messenger quedó listo. El punto 1 ya no lo bloquea; ahora depende de
+que se envíe la solicitud (punto 2) y Meta la apruebe.
 
 ### 5. Verificar en pantalla lo último — **Daniel**
 **Listo cuando:** en el panel se ve la conversación de Instagram dentro de la
 ficha, y una foto enviada por DM aparece guardada.
 **Por qué queda pendiente:** son cambios de interfaz y el entorno de Claude no
-permite abrir el panel con sesión. Todo lo demás (tipos, 278 pruebas, build,
+permite abrir el panel con sesión. Todo lo demás (tipos, 359 pruebas, build,
 rutas protegidas) sí está verificado.
 
 ### 6. Confirmar el chequeo nuevo de contacto — **Daniel, 30 segundos**
@@ -150,7 +182,19 @@ fuera de su propio panel. El orden seguro es: crear la variable, comprobar que
 entra, y recién entonces quitar el respaldo. No es información publicada — es la
 lista de quién puede entrar.
 
-### 8. El primer cliente real de punta a punta — **cuando llegue**
+### 8. Leads de prueba contados como clientes — ✅ **resuelto el 2026-09-15**
+**Cómo quedó:** desde la ficha se marca un lead como "prueba del sistema". Al marcarlo
+deja de contar en las tres cifras, en las listas de Hoy, en el aviso de las 8:00 y en el
+resumen de los lunes; sigue en la Bandeja con su insignia y se puede revertir.
+**Por qué importaba más de lo que parecía:** un lead de prueba con 87 puntos tapa a un
+cliente real de 60, porque la lista se ordena por puntaje. Y un aviso que pide una llamada
+imposible todas las mañanas es el que enseña a ignorar los avisos.
+**Lo que falta:** marcar los leads de prueba que ya existen. Eso es un toque por lead, y es
+de Daniel: Claude no marca ni borra datos de leads por iniciativa propia.
+**Decisión de diseño:** la marca es explícita, **nunca por nombre**. Detectar "prueba" o
+"test" en el nombre escondería el lead de una clienta apellidada Testa sin que nada falle.
+
+### 9. El primer cliente real de punta a punta — **cuando llegue**
 **Listo cuando:** un cliente que no sea una prueba entra por algún canal, queda
 clasificado, recibe respuesta y avanza de estado en el panel.
 **Por qué está acá:** los leads que hay hoy en la base son **pruebas del
