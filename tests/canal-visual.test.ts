@@ -45,6 +45,41 @@ test("los colores de las redes no se repiten: el color es la mitad del reconocim
   assert.equal(new Set(colores).size, colores.length, "dos canales comparten color");
 });
 
+/* ── que se puedan leer ─────────────────────────────────────────────────── */
+
+/**
+ * El nombre del canal se muestra a 11 px, muchas veces en el celular y a veces
+ * al sol. Estos son los dos fondos del panel; la norma pide 4.5 para texto
+ * chico. El verde de WhatsApp quedaba en 4.17 y hubo que oscurecerlo: sin esta
+ * prueba, el próximo que elija un color "más lindo" a ojo lo vuelve ilegible sin
+ * que nada falle.
+ */
+const FONDOS = { tarjeta: "#fbf9f5", fondo: "#efeae1" };
+const MINIMO = 4.5;
+
+function contraste(a: string, b: string): number {
+  const canal = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const luz = (hex: string) => {
+    const n = parseInt(hex.slice(1), 16);
+    return 0.2126 * canal((n >> 16) & 255) + 0.7152 * canal((n >> 8) & 255) + 0.0722 * canal(n & 255);
+  };
+  const [claro, oscuro] = [luz(a), luz(b)].sort((x, y) => y - x);
+  return (claro + 0.05) / (oscuro + 0.05);
+}
+
+test("todos los colores de canal se leen sobre los dos fondos del panel", () => {
+  for (const c of [...CONOCIDOS, "canal-que-no-existe"]) {
+    const { color, nombre } = canalVisual(c);
+    for (const [donde, fondo] of Object.entries(FONDOS)) {
+      const r = contraste(color, fondo);
+      assert.ok(r >= MINIMO, `${nombre} (${color}) sobre ${donde}: ${r.toFixed(2)}, mínimo ${MINIMO}`);
+    }
+  }
+});
+
 test("da igual cómo venga escrito el canal en la base", () => {
   for (const escrito of ["WhatsApp", " whatsapp ", "WHATSAPP"]) {
     assert.equal(canalVisual(escrito).nombre, "WhatsApp", `no reconoció "${escrito}"`);
