@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { registrarLead, type EntradaLead } from "@/lib/registrar-lead";
 import { avisar } from "@/lib/avisos";
 import { config, type TipoProyecto } from "@/lib/negocio";
+import { canalVisual } from "@/lib/canal-visual";
 import { Ventana, avisosDeLead, ipDe, MAX_BYTES, porIpDelSitio, porIpSinOrigen } from "@/lib/limite";
 import { ORIGENES, cors } from "@/lib/cors";
 
@@ -102,13 +103,17 @@ export async function POST(req: NextRequest) {
   if (r.recien_contactable) {
     const tipo = config().tipos[r.tipo_proyecto as TipoProyecto]?.label ?? "";
     const { id, clasificacion, score, nombre, comuna } = r;
+    // El aviso decía "Lead nuevo · A 91" sin decir por dónde entró, y no es lo
+    // mismo reaccionar a alguien que escribió por Instagram que a una
+    // cotización del sitio: uno espera respuesta, la otra espera una llamada.
+    const porDonde = canalVisual(r.canal).nombre;
     // Tope de avisos: si entran muchos leads seguidos (lo normal es uno cada
     // tanto), el lead igual se guarda — nada se pierde — pero el celular no
     // suena veinte veces. Un solo aviso dice que algo raro está pasando.
     if (avisosDeLead.permitir("total")) {
       after(() =>
         avisar({
-          titulo: `Lead nuevo · ${clasificacion} ${score}`,
+          titulo: `${porDonde} · Lead ${clasificacion} ${score}`,
           cuerpo: [nombre, tipo, comuna].filter(Boolean).join(" · ") || "Sin detalle",
           url: `/?lead=${id}`,
           tag: `lead-${id}`,

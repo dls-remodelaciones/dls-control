@@ -12,17 +12,9 @@ import { Marco, Vacia, SinConexion, Aviso } from "./piezas";
 import { useLeads, TOPE_LEADS } from "./use-leads";
 import { leadsVisibles } from "@/lib/visibles";
 import { agruparPorCanal } from "@/lib/agrupar-canal";
+import { agruparPorEtapa } from "@/lib/etapas";
 import type { Fila, Tab } from "./tipos";
 import { aCsv } from "@/lib/exportar";
-
-/** Etapas del pipeline, en orden. Los nombres internos son los de la columna `estado`. */
-const ETAPAS: [string, string][] = [
-  ["cotizador_web", "Cotizó"],
-  ["visita_terreno", "Visita"],
-  ["presupuesto_enviado", "Presupuesto"],
-  ["cerrado", "Cerrado"],
-  ["no_prospero", "No prosperó"],
-];
 
 export default function Pagina() {
   const [tab, setTab] = useState<Tab>("hoy");
@@ -195,12 +187,9 @@ export default function Pagina() {
               </button>
             </p>
           )}
-          {/* El pipeline mezclaba todas las etapas sin decir cuántas hay en cada una. */}
-          {tab === "pipeline" && !cargando && (
-            <p className="mt-1.5 text-[13px] tabular-nums" style={{ color: "var(--color-muted)" }}>
-              {ETAPAS.map(([k, etiqueta]) => `${etiqueta} ${filas.filter((f) => f.estado === k).length}`).join(" · ")}
-            </p>
-          )}
+          {/* El renglón de conteos por etapa se fue: ahora cada etapa es una
+              sección con su propio título y su cuenta, y repetirlo arriba era
+              decir dos veces lo mismo. */}
           {tab === "bandeja" && !cargando && filas.length > 0 && (
             <input
               type="search"
@@ -309,11 +298,28 @@ export default function Pagina() {
             />
           </section>
         ) : (
-          <ul className="space-y-2.5">
-            {visibles.map((f) => (
-              <Ficha key={f.id} f={f} recargar={cargar} enfocado={f.id === enfoque} />
+          /* El pipeline, por etapa. Mezcladas en una lista no se veía lo único
+             que un pipeline sirve para ver: dónde se está quedando la gente. */
+          <div className="space-y-6">
+            {agruparPorEtapa(visibles).map(({ etapa, leads }) => (
+              <section key={etapa.clave}>
+                <h2
+                  className="mb-1 text-[11px] font-semibold tracking-[0.12em] uppercase"
+                  style={{ color: etapa.color }}
+                >
+                  {etapa.nombre} · {leads.length}
+                </h2>
+                <p className="mb-2.5 text-[12px]" style={{ color: "var(--color-muted)" }}>
+                  {etapa.pendiente}
+                </p>
+                <ul className="space-y-2.5">
+                  {leads.map((f) => (
+                    <Ficha key={f.id} f={f} recargar={cargar} enfocado={f.id === enfoque} />
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         )}
         {tab === "hoy" && !cargando && <Estado />}
       </main>

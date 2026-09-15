@@ -77,6 +77,8 @@ export type Resultado =
       nombre: string;
       tipo_proyecto: string;
       comuna: string;
+      /** Por dónde entró. Lo usa el aviso al celular para decirlo en el título. */
+      canal: string;
     };
 
 const txt = (v: unknown, max = 300) => String(v ?? "").trim().slice(0, max);
@@ -304,5 +306,6 @@ export async function registrarLead(body: EntradaLead, db = supabaseAdmin()): Pr
     nombre: String(fusion.nombre || "Sin nombre"),
     tipo_proyecto: String(fusion.tipo_proyecto ?? ""),
     comuna: String(fusion.comuna ?? ""),
+    canal: String(fusion.canal ?? ""),
   };
 }
