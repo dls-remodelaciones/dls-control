@@ -26,11 +26,14 @@ export default function BandejaCanales({
   enfoque,
   compacto = false,
   prefijo = "",
+  dePrueba,
 }: {
   grupos: GrupoCanal<Fila>[];
   sinResponder: Map<string, string>;
   recargar: () => void;
   enfoque?: string | null;
+  /** Ids marcados como prueba del sistema: llevan insignia en la tarjeta. */
+  dePrueba?: Set<string>;
   /**
    * Para las secciones de "Hoy", que ya vienen tituladas por urgencia ("Te
    * escribieron", "Para hoy"). Ahí el aviso de "N esperando" sobra —todos
@@ -100,6 +103,7 @@ export default function BandejaCanales({
                     recargar={recargar}
                     enfocado={f.id === enfoque}
                     ocultarCanal
+                    esPrueba={dePrueba?.has(f.id)}
                   />
                 ))}
               </ul>

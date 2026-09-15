@@ -7,6 +7,7 @@ import Historial from "./historial";
 import Canal from "./canal";
 import { canalVisual } from "@/lib/canal-visual";
 import { cuandoLlego } from "@/lib/cuando";
+import { TIPO_DESMARCA, TIPO_MARCA } from "@/lib/prueba";
 import { config, type Senal, type TipoProyecto } from "@/lib/negocio";
 
 /**
@@ -96,11 +97,14 @@ export default function Ficha({
   f,
   alGuardar,
   alCambiar,
+  esPrueba = false,
 }: {
   f: DatosFicha;
   alGuardar: () => void;
   /** Avisa si hay cambios sin guardar, para no perderlos al cerrar la ficha. */
   alCambiar?: (sucia: boolean) => void;
+  /** Ya está marcado como prueba del sistema. */
+  esPrueba?: boolean;
 }) {
   const [d, setD] = useState({
     nombre: f.nombre ?? "",
@@ -119,6 +123,26 @@ export default function Ficha({
     motivo_no_prospero: f.motivo_no_prospero ?? "",
   });
   const [guardando, setGuardando] = useState(false);
+  const [marcando, setMarcando] = useState(false);
+
+  /**
+   * Marca o desmarca el lead como prueba del sistema.
+   *
+   * Se guarda como una fila en `actividad`, igual que "marcar como atendido": no
+   * hace falta una columna nueva, queda el registro de cuándo se hizo, y la
+   * marca más reciente es la que vale (ver `lib/prueba.ts`).
+   */
+  function marcarPrueba() {
+    setMarcando(true);
+    void supabase
+      ?.from("actividad")
+      .insert({ lead_id: f.id, tipo: esPrueba ? TIPO_DESMARCA : TIPO_MARCA, quien: "panel" })
+      .then(({ error }) => {
+        if (error) console.warn("No se pudo marcar como prueba:", error.message);
+        setMarcando(false);
+        alGuardar();
+      });
+  }
   const [aviso, setAviso] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{ score: number; clasificacion: string } | null>(null);
   const [desglose, setDesglose] = useState<Senal[]>(Array.isArray(f.desglose) ? f.desglose : []);
@@ -389,6 +413,31 @@ export default function Ficha({
         </div>
       )}
 
+
+      {/* Marcar como prueba del sistema.
+          Las pruebas quedaban contadas como clientes: el aviso de las 8:00
+          insistía con "leads A sin llamar" por un lead inventado, y el resumen
+          de los lunes los sumaba al negocio. No se borra nada — sigue en la
+          Bandeja con su insignia; solo deja de contar. */}
+      <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--color-linesoft)" }}>
+        <button
+          onClick={marcarPrueba}
+          disabled={marcando}
+          className="cursor-pointer text-[12px] underline underline-offset-2 disabled:opacity-40"
+          style={{ color: "var(--color-muted)" }}
+        >
+          {marcando
+            ? "Guardando…"
+            : esPrueba
+              ? "Este es un cliente real, no una prueba"
+              : "Marcar como prueba del sistema"}
+        </button>
+        {esPrueba && (
+          <p className="mt-1 text-[11.5px]" style={{ color: "var(--color-muted)" }}>
+            No cuenta en las cifras ni en los avisos. Sigue acá y se puede revertir.
+          </p>
+        )}
+      </div>
 
       <div className="mt-3 flex items-center justify-between">
         <span className="text-[11.5px]" style={{ color: "var(--color-muted)" }}>

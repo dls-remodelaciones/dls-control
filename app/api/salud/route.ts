@@ -4,6 +4,7 @@ import { avisar } from "@/lib/avisos";
 import { quienLlama } from "@/lib/cron";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { aSinLlamar, cambioDeNombre, type EstadoNombre } from "@/lib/novedades";
+import { TIPO_DESMARCA, TIPO_MARCA, leadsDePrueba } from "@/lib/prueba";
 
 /**
  * Revisión diaria del circuito de leads (cron de Vercel, ver `vercel.json`).
@@ -66,9 +67,20 @@ export async function GET(req: NextRequest) {
     // Los que Daniel ya llamó desde el panel (botón "Llamar") no cuentan como enfriándose.
     const { data: llamadas } = await db.from("actividad").select("lead_id").eq("tipo", "llamada").limit(5000);
     const llamados = new Set((llamadas ?? []).map((a) => a.lead_id as string));
+
+    // Los leads marcados como prueba no son clientes: sin esto, el aviso de las
+    // 8:00 insistía todas las mañanas con llamar a alguien que no existe, y un
+    // aviso que pide algo imposible es el que enseña a ignorar los avisos.
+    const { data: marcas } = await db
+      .from("actividad")
+      .select("lead_id, tipo, creado")
+      .in("tipo", [TIPO_MARCA, TIPO_DESMARCA])
+      .order("creado", { ascending: false })
+      .limit(1000);
+    const dePrueba = leadsDePrueba((marcas ?? []) as { lead_id: string; tipo: string; creado: string }[]);
     const lista = aSinLlamar(
       ((aes ?? []) as { id: string; nombre: string | null; clasificacion: string | null; apto_para_llamar: boolean | null; estado: string | null; creado: string }[]).filter(
-        (l) => !llamados.has(l.id),
+        (l) => !llamados.has(l.id) && !dePrueba.has(l.id),
       ),
       new Date(),
     );

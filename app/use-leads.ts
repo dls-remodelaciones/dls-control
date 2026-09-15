@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { CANALES_CONVERSACION } from "@/lib/canales";
+import { TIPO_DESMARCA, TIPO_MARCA, leadsDePrueba, sinPruebas } from "@/lib/prueba";
 import type { Fila } from "./tipos";
 
 /**
@@ -36,6 +37,8 @@ export function useLeads(activo: boolean) {
   const [sinResponder, setSinResponder] = useState<Map<string, string>>(new Map());
   /** Última lectura buena de la base: para saber si lo que se ve es de ahora. */
   const [actualizado, setActualizado] = useState<Date | null>(null);
+  /** Ids de los leads marcados como prueba del sistema. */
+  const [dePrueba, setDePrueba] = useState<Set<string>>(new Set());
 
   const cargar = useCallback(async () => {
     if (!supabase) {
@@ -85,6 +88,16 @@ export function useLeads(activo: boolean) {
       if (!atendidoEn.has(a.lead_id)) atendidoEn.set(a.lead_id, a.creado);
     }
 
+    // Leads marcados como prueba: se sacan de las cifras y de las listas. No se
+    // borran ni se esconden de la Bandeja — siguen estando, con su insignia.
+    const { data: marcas } = await supabase
+      .from("actividad")
+      .select("lead_id, tipo, creado")
+      .in("tipo", [TIPO_MARCA, TIPO_DESMARCA])
+      .order("creado", { ascending: false })
+      .limit(500);
+    setDePrueba(leadsDePrueba((marcas ?? []) as { lead_id: string; tipo: string; creado: string }[]));
+
     const pendientes = new Map<string, string>();
     for (const [id, m] of ultimo) {
       const atendido = atendidoEn.get(id);
@@ -123,36 +136,41 @@ export function useLeads(activo: boolean) {
     };
   }, [cargar, activo]);
 
+  // Las tres cifras y las listas de trabajo van SIN los leads de prueba: un
+  // lead de prueba con 87 puntos tapa a un cliente real de 60, porque la lista
+  // se ordena por puntaje. En la Bandeja siguen apareciendo, con su insignia.
+  const reales = useMemo(() => sinPruebas(filas, dePrueba), [filas, dePrueba]);
+
   const conteos = useMemo(() => {
-    const listaA = filas.filter(
+    const listaA = reales.filter(
       (f) => f.clasificacion === "A" && f.apto_para_llamar && f.estado === "contacto_inicial",
     );
-    const b = filas.filter((f) => f.clasificacion === "B").length;
-    const c = filas.filter(
+    const b = reales.filter((f) => f.clasificacion === "B").length;
+    const c = reales.filter(
       (f) =>
         f.clasificacion === "C" ||
         f.clasificacion === "D" ||
         (f.clasificacion === "A" && !f.apto_para_llamar),
     ).length;
     return { a: listaA.length, b, c, listaA };
-  }, [filas]);
+  }, [reales]);
 
   // Los que escribieron y esperan. Primero el que lleva más rato esperando:
   // es a quien peor le queda el silencio, y a quien primero se le cierra la
   // ventana de 24 horas de WhatsApp.
   const esperando = useMemo(
     () =>
-      filas
+      reales
         .filter((f) => sinResponder.has(f.id))
         .sort((a, b) => Date.parse(sinResponder.get(a.id)!) - Date.parse(sinResponder.get(b.id)!)),
-    [filas, sinResponder],
+    [reales, sinResponder],
   );
 
   // Recordatorios de la ficha que vencen hoy o ya vencieron, de leads todavía abiertos.
   const paraHoy = useMemo(() => {
     const finDeHoy = new Date();
     finDeHoy.setHours(23, 59, 59, 999);
-    return filas
+    return reales
       .filter(
         (f) =>
           f.fecha_proxima_accion &&
@@ -162,7 +180,7 @@ export function useLeads(activo: boolean) {
           !sinResponder.has(f.id),
       )
       .sort((a, b) => Date.parse(a.fecha_proxima_accion!) - Date.parse(b.fecha_proxima_accion!));
-  }, [filas, sinResponder]);
+  }, [reales, sinResponder]);
 
   // Cosas de hoy sin contar dos veces a quien está en más de una sección.
   const totalHoy = useMemo(
@@ -171,5 +189,5 @@ export function useLeads(activo: boolean) {
     [esperando, paraHoy, conteos.listaA],
   );
 
-  return { filas, cargando, error, sinResponder, actualizado, cargar, conteos, esperando, paraHoy, totalHoy };
+  return { filas, cargando, error, sinResponder, actualizado, cargar, conteos, esperando, paraHoy, totalHoy, dePrueba };
 }

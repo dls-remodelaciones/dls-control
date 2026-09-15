@@ -36,12 +36,15 @@ export default function Ficha({
   recargar,
   enfocado = false,
   ocultarCanal = false,
+  esPrueba = false,
 }: {
   f: Fila;
   esperaDesde?: string;
   recargar: () => void;
   /** Viene de un aviso del celular: se lleva a la vista y se abre. */
   enfocado?: boolean;
+  /** Marcado como prueba del sistema: no cuenta como cliente en ninguna cifra. */
+  esPrueba?: boolean;
   /**
    * Cuando la tarjeta ya vive dentro de la sección de su canal, repetir el
    * nombre del canal en cada una es ruido: la cabecera de arriba ya lo dijo.
@@ -133,9 +136,19 @@ export default function Ficha({
         <div className="min-w-0 flex-1">
           {/* De dónde escribió. Va arriba del nombre porque es lo primero que se
               busca al mirar la lista: por qué canal hay que contestarle. */}
-          {!ocultarCanal && (
+          {(!ocultarCanal || esPrueba) && (
             <div className="mb-1 flex items-center gap-2">
-              <Canal canal={f.canal} />
+              {!ocultarCanal && <Canal canal={f.canal} />}
+              {/* Marcado como prueba: se queda a la vista en la Bandeja, pero no
+                  suma en ninguna cifra ni aparece en las listas de trabajo. */}
+              {esPrueba && (
+                <span
+                  className="rounded-[2px] px-1.5 py-0.5 text-[10px] font-bold tracking-[0.08em] uppercase"
+                  style={{ background: "var(--color-warm)", color: "var(--color-muted)" }}
+                >
+                  Prueba del sistema
+                </span>
+              )}
             </div>
           )}
           <div
@@ -310,7 +323,7 @@ export default function Ficha({
         </>
       )}
 
-      {viendoFicha && <FichaDetalle f={f} alGuardar={recargar} alCambiar={marcarSucia} />}
+      {viendoFicha && <FichaDetalle f={f} alGuardar={recargar} alCambiar={marcarSucia} esPrueba={esPrueba} />}
     </li>
   );
 }

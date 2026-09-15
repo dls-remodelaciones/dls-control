@@ -57,7 +57,7 @@ export default function Pagina() {
     if (sesion === "fuera") window.location.replace("/login");
   }, [sesion]);
 
-  const { filas, cargando, error, sinResponder, actualizado, cargar, conteos, esperando, paraHoy, totalHoy } =
+  const { filas, cargando, error, sinResponder, actualizado, cargar, conteos, esperando, paraHoy, totalHoy, dePrueba } =
     useLeads(sesion === "dentro");
 
   // Lo pendiente de hoy también afuera del panel: como número en el ícono de la
@@ -279,6 +279,7 @@ export default function Pagina() {
             sinResponder={sinResponder}
             recargar={cargar}
             enfoque={enfoque}
+            dePrueba={dePrueba}
           />
         ) : tab === "hoy" ? (
           /* Los que pasaron el filtro completo, también por canal. Van con
