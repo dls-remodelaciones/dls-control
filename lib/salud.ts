@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { diferenciasConfig } from "@/lib/paridad";
 import { HOSTS_CRITICOS, scriptsLocales } from "@/lib/scripts-sitio";
 import { revisarDatosGoogle } from "@/lib/datos-google";
+import { resumirContactoPublicado, revisarContactoPublicado } from "@/lib/contacto-publicado";
 import { atrasadas, leerLatidos } from "@/lib/latidos";
 import { config } from "@/lib/negocio";
 import { BUCKET as BUCKET_RESPALDOS, DIAS_SIN_RESPALDO, ultimoRespaldo } from "@/lib/respaldo";
@@ -34,6 +35,8 @@ const GRAPH = "https://graph.facebook.com/v23.0";
 /** Instagram Login no habla por graph.facebook.com (ver lib/dm.ts). */
 const GRAPH_IG = "https://graph.instagram.com/v23.0";
 const SITIO = "https://www.dlsremodelaciones.cl";
+/** El único dominio de correo de la empresa. Cualquier otro proveedor es personal. */
+const DOMINIO_OFICIAL = "dlsremodelaciones.cl";
 const PANEL = "https://dls-control.vercel.app";
 const PLAZO_MS = 10_000;
 
@@ -327,6 +330,17 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
                   ? "Los datos para Google ya no traen las preguntas frecuentes."
                   : "Datos para Google válidos, con el teléfono de la empresa y las preguntas frecuentes.",
       );
+      // Que el sitio publique SOLO datos de la empresa. No rompe nada tener un
+      // correo o un teléfono personal publicado —el sistema sigue andando— y por
+      // eso hay que vigilarlo: el cliente que escriba ahí no entra al panel y no
+      // queda ni el rastro de que existió.
+      const contacto = revisarContactoPublicado(htmlHome, {
+        dominioOficial: DOMINIO_OFICIAL,
+        telefonoOficial: numeroMeta,
+      });
+      const vContacto = resumirContactoPublicado(contacto, DOMINIO_OFICIAL);
+      anotar("Datos de contacto publicados", vContacto.ok, vContacto.detalle);
+
       const rotos = (
         await Promise.all(
           srcs.map(async (src) => {
