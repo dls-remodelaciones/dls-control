@@ -12,6 +12,14 @@ import { revisarContactoPublicado, resumirContactoPublicado } from "../lib/conta
 
 const OFICIAL = { dominioOficial: "dlsremodelaciones.cl", telefonoOficial: "+56 9 5638 1974" };
 
+/** Atajo: revisar una sola página y resumirla, como hacía la versión anterior. */
+function revisarUna(html: string, donde = "el sitio") {
+  return resumirContactoPublicado(
+    [{ donde, contacto: revisarContactoPublicado(html, OFICIAL) }],
+    OFICIAL.dominioOficial,
+  );
+}
+
 test("un sitio correcto no genera ninguna alarma", () => {
   const html = `
     <p>Escríbenos a contacto@dlsremodelaciones.cl</p>
@@ -22,16 +30,43 @@ test("un sitio correcto no genera ninguna alarma", () => {
   const r = revisarContactoPublicado(html, OFICIAL);
   assert.deepEqual(r.correosPersonales, []);
   assert.deepEqual(r.telefonosAjenos, []);
-  assert.equal(resumirContactoPublicado(r, OFICIAL.dominioOficial).ok, true);
+  assert.equal(revisarUna(html).ok, true);
 });
 
 test("detecta un correo personal publicado", () => {
-  const r = revisarContactoPublicado("<p>Contacto: daniel.lehmann@gmail.com</p>", OFICIAL);
-  assert.deepEqual(r.correosPersonales, ["daniel.lehmann@gmail.com"]);
-  const s = resumirContactoPublicado(r, OFICIAL.dominioOficial);
+  const html = "<p>Contacto: daniel.lehmann@gmail.com</p>";
+  assert.deepEqual(revisarContactoPublicado(html, OFICIAL).correosPersonales, ["daniel.lehmann@gmail.com"]);
+  const s = revisarUna(html);
   assert.equal(s.ok, false);
-  assert.match(s.detalle, /correo personal publicado/);
+  assert.match(s.detalle, /un correo personal \(daniel\.lehmann@gmail\.com\)/);
   assert.match(s.detalle, /no entra al panel/);
+});
+
+test("el aviso dice en cuál de las dos páginas está el problema", () => {
+  // Sin esto el aviso decía "hay un correo personal" y no se sabía si había que
+  // ir al sitio o al panel. El problema real del 14-sep estaba en el panel.
+  const s = resumirContactoPublicado(
+    [
+      { donde: "el sitio", contacto: revisarContactoPublicado("<p>contacto@dlsremodelaciones.cl</p>", OFICIAL) },
+      { donde: "la página de ingreso", contacto: revisarContactoPublicado("<p>x@gmail.com</p>", OFICIAL) },
+    ],
+    OFICIAL.dominioOficial,
+  );
+  assert.equal(s.ok, false);
+  assert.match(s.detalle, /en la página de ingreso/);
+  assert.doesNotMatch(s.detalle, /en el sitio,/, "no debe acusar a la página que está bien");
+});
+
+test("cuando las dos están bien, el aviso nombra las dos", () => {
+  const s = resumirContactoPublicado(
+    [
+      { donde: "el sitio", contacto: revisarContactoPublicado("<p>contacto@dlsremodelaciones.cl</p>", OFICIAL) },
+      { donde: "la página de ingreso", contacto: revisarContactoPublicado("<p>tu@correo.cl</p>", OFICIAL) },
+    ],
+    OFICIAL.dominioOficial,
+  );
+  assert.equal(s.ok, true);
+  assert.match(s.detalle, /el sitio y la página de ingreso/);
 });
 
 test("detecta los proveedores personales más usados en Chile", () => {
@@ -42,9 +77,9 @@ test("detecta los proveedores personales más usados en Chile", () => {
 });
 
 test("detecta un teléfono que no es el de la empresa", () => {
-  const r = revisarContactoPublicado('<a href="https://wa.me/56982291198">escríbenos</a>', OFICIAL);
-  assert.deepEqual(r.telefonosAjenos, ["982291198"]);
-  const s = resumirContactoPublicado(r, OFICIAL.dominioOficial);
+  const html = '<a href="https://wa.me/56982291198">escríbenos</a>';
+  assert.deepEqual(revisarContactoPublicado(html, OFICIAL).telefonosAjenos, ["982291198"]);
+  const s = revisarUna(html);
   assert.equal(s.ok, false);
   assert.match(s.detalle, /\+56 982291198/);
   assert.match(s.detalle, /no es el número de la empresa/);

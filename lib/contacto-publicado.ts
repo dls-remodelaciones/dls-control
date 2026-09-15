@@ -113,24 +113,52 @@ export function revisarContactoPublicado(
   return { correosPersonales, telefonosAjenos };
 }
 
-/** El texto que ve Daniel en la revisión diaria. */
-export function resumirContactoPublicado(r: ContactoPublicado, dominioOficial: string): { ok: boolean; detalle: string } {
-  const problemas: string[] = [];
-  if (r.correosPersonales.length) {
-    problemas.push(
-      `hay ${r.correosPersonales.length === 1 ? "un correo personal publicado" : `${r.correosPersonales.length} correos personales publicados`}: ${r.correosPersonales.join(", ")}`,
-    );
+/** Una página revisada, con el nombre que Daniel reconoce. */
+export interface PaginaRevisada {
+  /** "el sitio", "la página de ingreso": se lee dentro de la frase del aviso. */
+  donde: string;
+  contacto: ContactoPublicado;
+}
+
+/**
+ * El texto que ve Daniel en la revisión diaria, para varias páginas a la vez.
+ *
+ * Recibe una lista y no una sola página porque el problema que dio origen a
+ * todo esto no estaba en el sitio sino en la **página de ingreso del panel**:
+ * vigilar solo el sitio habría dejado afuera justo el lugar donde ya pasó.
+ * El aviso tiene que decir en cuál de las dos está, o no se sabe dónde ir.
+ */
+export function resumirContactoPublicado(
+  paginas: PaginaRevisada[],
+  dominioOficial: string,
+): { ok: boolean; detalle: string } {
+  const frases: string[] = [];
+
+  for (const { donde, contacto } of paginas) {
+    const partes: string[] = [];
+    if (contacto.correosPersonales.length) {
+      partes.push(
+        contacto.correosPersonales.length === 1
+          ? `un correo personal (${contacto.correosPersonales[0]})`
+          : `${contacto.correosPersonales.length} correos personales (${contacto.correosPersonales.join(", ")})`,
+      );
+    }
+    if (contacto.telefonosAjenos.length) {
+      partes.push(
+        `${contacto.telefonosAjenos.map((n) => `+56 ${n}`).join(", ")}, que no es el número de la empresa`,
+      );
+    }
+    if (partes.length) frases.push(`en ${donde}, ${partes.join(" y ")}`);
   }
-  if (r.telefonosAjenos.length) {
-    problemas.push(
-      `aparece${r.telefonosAjenos.length === 1 ? "" : "n"} ${r.telefonosAjenos.map((n) => `+56 ${n}`).join(", ")}, que no es el número de la empresa`,
-    );
-  }
-  if (!problemas.length) {
-    return { ok: true, detalle: `Solo datos de la empresa (@${dominioOficial} y el número único).` };
+
+  if (!frases.length) {
+    return {
+      ok: true,
+      detalle: `Solo datos de la empresa (@${dominioOficial} y el número único) en ${paginas.map((p) => p.donde).join(" y ")}.`,
+    };
   }
   return {
     ok: false,
-    detalle: `En el sitio ${problemas.join(" y ")}. Un cliente que escriba ahí no entra al panel.`,
+    detalle: `Hay ${frases.join("; ")}. Un cliente que escriba ahí no entra al panel.`,
   };
 }

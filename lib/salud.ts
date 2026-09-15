@@ -330,15 +330,24 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
                   ? "Los datos para Google ya no traen las preguntas frecuentes."
                   : "Datos para Google válidos, con el teléfono de la empresa y las preguntas frecuentes.",
       );
-      // Que el sitio publique SOLO datos de la empresa. No rompe nada tener un
-      // correo o un teléfono personal publicado —el sistema sigue andando— y por
-      // eso hay que vigilarlo: el cliente que escriba ahí no entra al panel y no
+      // Que solo se publiquen datos de la empresa. No rompe nada tener un correo
+      // o un teléfono personal a la vista —el sistema sigue andando— y por eso
+      // hay que vigilarlo: el cliente que escriba ahí no entra al panel y no
       // queda ni el rastro de que existió.
-      const contacto = revisarContactoPublicado(htmlHome, {
-        dominioOficial: DOMINIO_OFICIAL,
-        telefonoOficial: numeroMeta,
-      });
-      const vContacto = resumirContactoPublicado(contacto, DOMINIO_OFICIAL);
+      //
+      // Se revisa el sitio Y la página de ingreso del panel, que es pública y
+      // fue justo donde apareció el problema el 14-sep-2026: un correo personal
+      // de ejemplo en el campo, a la vista de cualquiera.
+      const dondeMirar = { dominioOficial: DOMINIO_OFICIAL, telefonoOficial: numeroMeta };
+      const paginas = [{ donde: "el sitio", contacto: revisarContactoPublicado(htmlHome, dondeMirar) }];
+      const ingreso = await traer(`${PANEL}/login`);
+      if (ingreso.ok) {
+        paginas.push({
+          donde: "la página de ingreso",
+          contacto: revisarContactoPublicado(await ingreso.text(), dondeMirar),
+        });
+      }
+      const vContacto = resumirContactoPublicado(paginas, DOMINIO_OFICIAL);
       anotar("Datos de contacto publicados", vContacto.ok, vContacto.detalle);
 
       const rotos = (
