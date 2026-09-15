@@ -13,6 +13,7 @@ import { useLeads, TOPE_LEADS } from "./use-leads";
 import { leadsVisibles } from "@/lib/visibles";
 import { agruparPorCanal } from "@/lib/agrupar-canal";
 import { agruparPorEtapa } from "@/lib/etapas";
+import { sinPruebas } from "@/lib/prueba";
 import type { Fila, Tab } from "./tipos";
 import { aCsv } from "@/lib/exportar";
 
@@ -300,9 +301,12 @@ export default function Pagina() {
           </section>
         ) : (
           /* El pipeline, por etapa. Mezcladas en una lista no se veía lo único
-             que un pipeline sirve para ver: dónde se está quedando la gente. */
+             que un pipeline sirve para ver: dónde se está quedando la gente.
+             Va SIN los leads de prueba: es la vista del negocio, y una prueba
+             parada en "Presupuesto enviado" distorsiona justo lo que se viene a
+             mirar. En la Bandeja siguen apareciendo, con su insignia. */
           <div className="space-y-6">
-            {agruparPorEtapa(visibles).map(({ etapa, leads }) => (
+            {agruparPorEtapa(sinPruebas(visibles, dePrueba)).map(({ etapa, leads }) => (
               <section key={etapa.clave}>
                 <h2
                   className="mb-1 text-[11px] font-semibold tracking-[0.12em] uppercase"

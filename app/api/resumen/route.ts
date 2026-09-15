@@ -71,7 +71,14 @@ export async function GET(req: NextRequest) {
     contarPendientesA(sinPruebas((pendientes.data ?? []) as (FilaLead & { id: string })[], dePrueba)),
     avancesSemana((ediciones.data ?? []) as CambioEstado[]),
   );
+  // Si se dejaron pruebas afuera, decirlo. Sin esta línea, un resumen que dice
+  // "6 leads nuevos" cuando entraron 10 parece que el sistema perdió cuatro, y
+  // esa duda es peor que el dato que se quiso limpiar.
+  const pruebasSemana = conId.filter((l) => l.creado >= hace7 && dePrueba.has(l.id)).length;
   const extras = [
+    pruebasSemana > 0
+      ? `No se cuenta${pruebasSemana === 1 ? "" : "n"} ${pruebasSemana} ${pruebasSemana === 1 ? "lead marcado" : "leads marcados"} como prueba del sistema.`
+      : "",
     motivosSemana((perdidos.data ?? []) as { motivo_no_prospero: string | null }[]),
     textoTiempo(tiempoRespuesta((chats.data ?? []) as MensajeTiempo[])),
   ].filter(Boolean);
