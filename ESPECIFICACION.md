@@ -400,10 +400,16 @@ La app está lista cuando, **con el computador de Daniel apagado**:
 
 ---
 
-## FASE 1 — validada con un cliente real
+## FASE 1 — validada con una persona real
 
-**El caso Tamara Mednik.** Daniel le pidio a una clienta real que probara el sitio. Lo que
-salio de ahi vale mas que todas las pruebas sinteticas juntas:
+**El caso Tamara Mednik.** Daniel le pidio a una persona real que probara el sitio. Lo que
+salio de ahi vale mas que todas las pruebas sinteticas juntas — una persona de verdad usando el
+formulario de verdad.
+
+**Pero es una prueba del sistema, no un cliente** (aclarado por Daniel el 15-sep-2026). Su lead
+sigue en la base con clasificacion A y 87 puntos, y por eso aparecio durante dias en los
+informes como "cliente esperando una llamada" que nadie tenia que hacer. Lo mismo con los leads
+a nombre de "Daniel De Los Santos". **No proponer llamarlos ni contarlos como negocio.**
 
 **1. El chatbot v2 califica mucho mejor que el v1.** Por la manana entro como **B 69**; por la
 tarde, con las preguntas nuevas de plazo y propiedad, como **A 87**. No cambio ella: cambio lo

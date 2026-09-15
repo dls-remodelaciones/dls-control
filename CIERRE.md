@@ -150,10 +150,21 @@ fuera de su propio panel. El orden seguro es: crear la variable, comprobar que
 entra, y recién entonces quitar el respaldo. No es información publicada — es la
 lista de quién puede entrar.
 
-### 8. Llamar a Tamara Mednik — **Daniel**
-**Listo cuando:** queda registrada la llamada en su ficha.
-**Por qué está acá:** clasificación A con 87 puntos, pasó el filtro completo y
-lleva días esperando. El sistema existe para esto.
+### 8. El primer cliente real de punta a punta — **cuando llegue**
+**Listo cuando:** un cliente que no sea una prueba entra por algún canal, queda
+clasificado, recibe respuesta y avanza de estado en el panel.
+**Por qué está acá:** los leads que hay hoy en la base son **pruebas del
+sistema**, no clientes (Daniel lo confirmó el 15-sep). Los nombres "Daniel De
+Los Santos" y "Tamara Mednik", y todo lo que empiece con "Prueba", "Chequeo" o
+"Verificacion", son de prueba. Están las piezas verificadas una por una, pero el
+recorrido completo con un cliente de verdad todavía no ocurrió, y esa es la
+última prueba que falta. No depende de código.
+
+**Consecuencia molesta, y abierta:** el aviso diario de "leads A sin llamar"
+insiste cada mañana con esos leads de prueba, y el resumen semanal los cuenta
+como negocio. Lo correcto es poder marcar un lead como prueba y que los avisos y
+los contadores lo ignoren — no una lista de nombres escrita en el código, que se
+rompe con el próximo nombre de prueba que a nadie se le avise.
 
 ---
 
