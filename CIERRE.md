@@ -8,10 +8,14 @@ un dueño. Nada se marca hecho porque "debería funcionar": se marca cuando el
 criterio se cumple mirando el sistema real. Mientras quede un punto abierto, el
 trabajo no está cerrado.
 
-**Regla que ordena todo lo demás:** cinco de los seis puntos abiertos dependen de
-un solo trámite. Ver "El cuello de botella".
+**Regla que ordena todo lo demás:** cinco de los ocho puntos abiertos dependen de
+un solo trámite, ya enviado. Ver "El cuello de botella". Los otros tres son de
+Daniel y se pueden hacer hoy.
 
-Última revisión: 2026-09-14.
+Última revisión: 2026-09-15.
+
+**Versión para el celular:** https://claude.ai/code/artifact/30ddb153-fd9b-4bdd-949a-faa89c0c0df1
+(las casillas que se marcan ahí quedan guardadas y se pueden leer desde una sesión nueva).
 
 ---
 
@@ -49,15 +53,20 @@ Messenger. No falta programación. Falta el trámite.
 Criterio de 10/10 para un canal: **entra el lead, avisa, se puede responder desde
 el panel, y la revisión diaria se da cuenta si se cae.**
 
-| Canal | Entra | Avisa | Responde | Vigilado | Estado |
-|---|---|---|---|---|---|
-| Sitio y cotizador | ✅ | ✅ | n/a | ✅ | **10/10** |
-| WhatsApp | ✅ | ✅ | ✅ | ✅ | **10/10** |
-| Instagram | ✅ | ✅ | ✅ | ✅ | **10/10** |
-| Correo | ✅ | ✅ | n/a | ✅ | **10/10** |
-| Messenger | ⚠️ solo roles | ✅ | ⚠️ bloqueado | ✅ | **bloqueado por Meta** |
+| Canal | Entra | Avisa | Responde | Vigilado | Se distingue | Estado |
+|---|---|---|---|---|---|---|
+| Sitio y cotizador | ✅ | ✅ | n/a | ✅ | ✅ | **10/10** |
+| WhatsApp | ✅ | ✅ | ✅ | ✅ | ✅ | **10/10** |
+| Instagram | ✅ | ✅ | ✅ | ✅ | ✅ | **9/10** — el botón del perfil desvía al privado (punto 3) |
+| Correo | ✅ | ✅ | n/a | ✅ | ✅ | **10/10** |
+| Messenger | ⚠️ solo roles | ✅ | ⚠️ bloqueado | ✅ | ✅ | **bloqueado por Meta** |
 
 Messenger tiene el código completo y probado. Lo único que le falta es el permiso.
+
+"Se distingue" se agregó el 15-sep: el canal ahora se ve en la tarjeta, la lista
+va agrupada por canal y el aviso al celular dice por dónde entró. Antes el dato
+se guardaba y no se mostraba en ninguna parte, así que los cinco canales caían en
+un buzón donde todo se veía igual.
 
 ---
 
@@ -93,13 +102,25 @@ vale 30 días. Con esas dos cosas, el formulario queda completo.
 **Cuidado:** es irreversible — enviada, no se puede editar ni cancelar. No se
 envía sin que Daniel vea el formulario completo y lo apruebe.
 
-### 3. El número de la empresa en el perfil de Instagram — **Daniel**
-**Listo cuando:** el perfil muestra +56 9 5638 1974 en los dos campos: el botón
-de WhatsApp y el teléfono de contacto (son distintos).
-**Estado:** hoy aparece un número personal. Todo lo que controla el sistema
-—sitio, cotizador, chatbot, correos, datos para Google— ya usa el de la empresa;
-ese perfil se configura fuera y su dominio está bloqueado para Claude.
-**Por qué importa:** los clientes están escribiendo por Instagram.
+### 3. El botón de WhatsApp del perfil de Instagram — **Daniel**
+**Listo cuando:** al apretarlo en el celular se abre un chat con +56 9 5638 1974.
+**Ya resuelto el 14-sep:** el **correo** del perfil (`contacto@dlsremodelaciones.cl`,
+antes un Gmail personal), el **teléfono de contacto** (+56 9 5638 1974) y la casilla
+"Mostrar información de contacto", que estaba apagada — sin ella el perfil no
+mostraba ningún dato. Verificado en el panel "Contacto" del perfil móvil.
+**Lo que sigue abierto:** el botón de WhatsApp, que es otra vinculación. Se dejó
+vinculado el número de la empresa en Cuenta profesional (con tick verde) y el
+botón siguió abriendo el chat personal.
+**Lo ya descartado, para no repetir camino:**
+- No sale de "Botones de acción" (está en "Ninguno activo").
+- No sale de "Opciones de contacto", que ya tiene los datos correctos.
+- No lo hereda de la página de Facebook, que apunta al número correcto.
+- El campo "Número de WhatsApp" de la web dio "Se ha producido un error" en el
+  primer intento y quedó vinculado en el segundo. El botón no cambió en 1 minuto.
+**Lo que queda por probar:** si era caché de la app (cerrarla del todo y reabrir).
+Si no, desvincular y volver a vincular desde el computador.
+**Por qué importa de verdad:** quien aprieta ese botón escribe a un privado y ese
+mensaje **no entra al panel**: no queda registrado como lead ni avisa nada.
 
 ### 4. `FB_PAGE_ACCESS_TOKEN` — **Daniel, pero después del punto 1**
 **Listo cuando:** existe en Vercel y la revisión diaria dice "identificador vivo".
@@ -112,7 +133,24 @@ ficha, y una foto enviada por DM aparece guardada.
 permite abrir el panel con sesión. Todo lo demás (tipos, 278 pruebas, build,
 rutas protegidas) sí está verificado.
 
-### 6. Llamar a Tamara Mednik — **Daniel**
+### 6. Confirmar el chequeo nuevo de contacto — **Daniel, 30 segundos**
+**Listo cuando:** en Estado del sistema, "Datos de contacto publicados" está en verde.
+**Por qué queda pendiente:** es el único de los 21 chequeos que no se pudo probar
+contra el sistema real, porque `/api/salud` exige sesión o `CRON_SECRET` y Claude
+no maneja secretos. Si estuviera en rojo sería un falso positivo y hay que
+corregirlo antes de que el cron de las 8:00 avise en falso — una alarma que no
+corresponde es lo que hace que después no se le crea a ninguna.
+
+### 7. Sacar el correo personal de la lista de acceso — **decisión de Daniel**
+**Listo cuando:** `PANEL_EMAILS` existe en Vercel, Daniel entra al panel, y
+`lib/sesion.ts` ya no necesita el respaldo.
+**Por qué no se hizo solo:** ese respaldo es hoy **lo único** que da acceso al
+panel, porque `PANEL_EMAILS` no está en Vercel. Cambiarlo a ciegas deja a Daniel
+fuera de su propio panel. El orden seguro es: crear la variable, comprobar que
+entra, y recién entonces quitar el respaldo. No es información publicada — es la
+lista de quién puede entrar.
+
+### 8. Llamar a Tamara Mednik — **Daniel**
 **Listo cuando:** queda registrada la llamada en su ficha.
 **Por qué está acá:** clasificación A con 87 puntos, pasó el filtro completo y
 lleva días esperando. El sistema existe para esto.
