@@ -3,7 +3,13 @@ import { revisarSalud } from "@/lib/salud";
 import { avisar } from "@/lib/avisos";
 import { quienLlama } from "@/lib/cron";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { aSinLlamar, cambioDeNombre, type EstadoNombre } from "@/lib/novedades";
+import {
+  DIAS_PRESUPUESTO_DORMIDO,
+  aSinLlamar,
+  cambioDeNombre,
+  presupuestosDormidos,
+  type EstadoNombre,
+} from "@/lib/novedades";
 import { TIPO_DESMARCA, TIPO_MARCA, leadsDePrueba } from "@/lib/prueba";
 
 /**
@@ -57,12 +63,21 @@ export async function GET(req: NextRequest) {
 
   // Leads A que se están enfriando: segundo aviso, cada mañana, mientras sigan ahí.
   let enfriandose: string[] = [];
+  /** Presupuestos ya enviados que llevan una semana sin que nadie los mueva. */
+  let dormidos: string[] = [];
   if (db) {
     const { data: aes } = await db
       .from("leads")
       .select("id, nombre, clasificacion, apto_para_llamar, estado, creado")
       .eq("clasificacion", "A")
       .eq("estado", "contacto_inicial")
+      .limit(500);
+    // Presupuestos enviados que llevan una semana quietos: es el dinero más
+    // cercano del panel y nadie lo vigilaba.
+    const { data: enviados } = await db
+      .from("leads")
+      .select("id, nombre, estado, creado, ultima_actividad")
+      .eq("estado", "presupuesto_enviado")
       .limit(500);
     // Los que Daniel ya llamó desde el panel (botón "Llamar") no cuentan como enfriándose.
     const { data: llamadas } = await db.from("actividad").select("lead_id").eq("tipo", "llamada").limit(5000);
@@ -85,6 +100,28 @@ export async function GET(req: NextRequest) {
       new Date(),
     );
     enfriandose = lista.map((l) => l.nombre || "Sin nombre");
+
+    // Aviso aparte del de los leads A: son dos trabajos distintos —uno es
+    // llamar a alguien nuevo, el otro insistir sobre algo ya cotizado— y
+    // mezclarlos en un solo mensaje haría que se atienda solo el primero.
+    const sinMover = presupuestosDormidos(
+      ((enviados ?? []) as { id: string; nombre: string | null; estado: string | null; creado: string; ultima_actividad: string | null }[]).filter(
+        (l) => !dePrueba.has(l.id),
+      ),
+      new Date(),
+    );
+    dormidos = sinMover.map((l) => l.nombre || "Sin nombre");
+    if (sinMover.length && debeAvisar) {
+      await avisar({
+        titulo:
+          sinMover.length === 1
+            ? `Un presupuesto lleva ${DIAS_PRESUPUESTO_DORMIDO} días sin respuesta`
+            : `${sinMover.length} presupuestos llevan ${DIAS_PRESUPUESTO_DORMIDO} días sin respuesta`,
+        cuerpo: `${dormidos.slice(0, 5).join(", ")}${sinMover.length > 5 ? "…" : ""}. Ya están cotizados: una llamada corta decide si siguen o no.`,
+        url: sinMover.length === 1 ? `/?lead=${sinMover[0].id}` : "/",
+        tag: "presupuestos-dormidos",
+      });
+    }
     if (lista.length && debeAvisar) {
       await avisar({
         titulo:
@@ -102,6 +139,7 @@ export async function GET(req: NextRequest) {
     ok: fallas.length === 0,
     chequeos,
     a_sin_llamar: enfriandose,
+    presupuestos_dormidos: dormidos,
     nombre_whatsapp: nombreMeta,
     novedad_nombre: novedadNombre,
     aviso,
