@@ -92,6 +92,9 @@ Daniel ────> "+ Anotar lead" ──────────────�
 | Archivo | Qué es |
 |---|---|
 | `app/page.tsx` | Pestañas Hoy / Bandeja / Pipeline, tarjetas de lead, buscador, Excel, `/?lead=id` |
+| `app/bandeja-canales.tsx` | Las secciones por canal, con su ícono de rótulo y el cierre recordado |
+| `app/canal.tsx` | La insignia de canal: los ocho íconos SVG, escritos a mano |
+| `app/use-cerrados.ts` | Qué secciones quedaron cerradas (`useSyncExternalStore`, no efecto) |
 | `app/ficha.tsx` | Ficha editable, "¿por qué este puntaje?", recordatorio con fecha |
 | `app/historial.tsx` | Historial de actividad del lead |
 | `app/conversacion.tsx` | Chat de WhatsApp: ventana de 24 h, plantillas, respuestas rápidas, adjuntos |
@@ -99,6 +102,35 @@ Daniel ────> "+ Anotar lead" ──────────────�
 | `app/avisos.tsx` + `public/sw.js` | Activar y recibir avisos al celular |
 | `app/estado.tsx` | "Estado del sistema" (los chequeos de la revisión diaria) |
 | `app/login/page.tsx` | Ingreso por enlace o código de 8 dígitos (entra solo al completarlo) |
+
+### Cómo se ordena lo que se ve (14-sep-2026)
+
+El panel mostraba treinta tarjetas idénticas: el canal se guardaba desde el
+primer día pero no se dibujaba en ninguna parte, y con cinco entradas al mismo
+buzón la lista era un muro plano. Las reglas quedaron en `lib/`, sin React, para
+poder probarlas — un error acá esconde un cliente sin que nada falle a la vista.
+
+| Archivo | Qué decide |
+|---|---|
+| `lib/canal-visual.ts` | Nombre, color y forma del ícono de cada canal. Un canal sin mapear igual se muestra |
+| `lib/urgencia.ts` | Cuánto queda de la ventana de 24 h de Meta, y si va en rojo |
+| `lib/agrupar-canal.ts` | Las secciones de canal y su orden (`ascPor` cambia el criterio interno) |
+| `lib/etapas.ts` | Las etapas del pipeline, en el orden del negocio |
+| `lib/cuando.ts` | "hoy 14:32" en vez de "hace 14 h", para poder comparar llegadas |
+| `lib/cerrados.ts` | Qué secciones quedan dobladas. Solo se anota lo cerrado |
+
+Tres criterios que no son obvios y conviene no "arreglar":
+
+- **Entre canales manda quien espera, no el volumen**, y entre los que esperan,
+  aquel a quien antes se le cierra la ventana de Meta. Un canal con dos personas
+  esperando va sobre uno con treinta cotizaciones dormidas.
+- **En "Para hoy" el orden es al revés** que en la bandeja: manda la hora del
+  recordatorio y lo vencido va arriba. Por eso `agruparPorCanal` acepta `ascPor`.
+- **Todo lo desconocido cae del lado visible**: un canal nuevo, un estado que no
+  está en `ETAPAS`, un valor corrupto en el navegador. Siempre se ve de más,
+  nunca de menos.
+
+"Hoy" y "Bandeja" se agrupan por canal; el pipeline, por etapa.
 
 ## Rutas del servidor
 
@@ -152,7 +184,14 @@ Buckets privados: `respaldos` (JSON semanal), `adjuntos` (archivos de WhatsApp).
 WhatsApp viven en la misma app de Meta, así que el webhook cae de vuelta en `WA_APP_SECRET`.
 Si algún día Messenger se muda a su propia app, hay que crearla.
 La revisión diaria vigila que estén todas (`lib/salud.ts`).
-Opcionales: `PANEL_EMAILS`, `CRON_SECRET`, `EMAILJS_LIMITE`, `EMAILJS_DIA_REINICIO`.
+Opcionales: `PANEL_EMAILS`, `EMAILJS_LIMITE`, `EMAILJS_DIA_REINICIO`.
+`CRON_SECRET` **ya existe** (14-sep-2026): los crons se autentican con
+`Authorization: Bearer` y un impostor recibe 401 (verificado contra producción, no solo con
+pruebas). `lib/cron.ts` sigue aceptando el user-agent de Vercel como respaldo. Al crearla en
+Vercel hay que escribirla **sin espacios ni salto de línea final**: el despliegue falla con
+"contains leading or trailing whitespace, which is not allowed in HTTP header values". Con
+PowerShell, `$s | vercel env add` agrega un salto; desde Bash, `printf '%s' "$S" | vercel env add`
+no.
 `IG_ACCESS_TOKEN` (2026-09-14): responder DM de Instagram desde el panel, funcionando. Se
 genera en Casos de uso → Instagram → "2. Genera identificadores de acceso" → "Generar
 identificador" en la fila de la cuenta; se muestra una sola vez.
@@ -174,15 +213,26 @@ restricción.
 - **Nada verifica el teléfono publicado en Instagram y Messenger.** La revisión diaria ya
   compara el número del sitio con el de Meta, pero el de los perfiles de esas redes se
   configura fuera y necesitaría `FB_PAGE_ACCESS_TOKEN`, que todavía no se guardó.
-- **Los crons se autentican por user-agent** mientras no exista `CRON_SECRET` (ver `lib/cron.ts`,
-  que ya soporta ambos y tiene pruebas). Al crear esa variable en Vercel, el cron pasa a exigir
-  `Authorization: Bearer`. Conviene hacerlo mirando: si algo saliera mal, el primero en quedar
-  bloqueado sería `/api/salud`, que es justamente el que avisa cuando algo falla.
+- **El botón de WhatsApp del perfil de Instagram sigue apuntando al número personal**
+  (14-sep-2026). El correo y el teléfono del perfil ya quedaron con los datos de la empresa
+  —`contacto@dlsremodelaciones.cl` y +56 9 5638 1974— y el número quedó vinculado en Cuenta
+  profesional con tick verde, pero el botón del perfil siguió abriendo el chat personal. No
+  sale de "Botones de acción" (está en "Ninguno activo") ni de "Opciones de contacto", ni de
+  la página de Facebook, que ya apunta al número correcto. Queda comprobar si era caché de la
+  app; si no, desvincular y volver a vincular. **Importa de verdad**: cada persona que aprieta
+  ese botón escribe a un privado y ese mensaje no entra al panel, así que no queda registrado
+  como lead.
 
 ## Pruebas
 
-`npm test` (node:test con tsx). También corren en GitHub Actions en cada push
-(`.github/workflows/pruebas.yml`); no bloquean el despliegue de Vercel, pero dejan la marca roja.
+`npm test` (node:test con tsx). 332 al 14-sep-2026. También corren en GitHub Actions en cada
+push (`.github/workflows/pruebas.yml`); no bloquean el despliegue de Vercel, pero dejan la
+marca roja.
+
+**Al escribir una prueba con fechas, no uses un desfase a mano (`-03:00`).** Chile cambia de
+huso el primer domingo de septiembre, así que dos fechas del mismo mes pueden estar en
+desfases distintos y la prueba falla por el cambio de hora, no por el código. Construye la
+fecha en hora local (`new Date(2026, 8, 14, 15, 30)`); costó un test rojo descubrirlo.
 
 ## Servicios externos
 
