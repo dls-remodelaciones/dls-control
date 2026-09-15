@@ -79,6 +79,7 @@ export default function Pagina() {
     listaA: conteos.listaA,
     sinResponder,
     paraHoy,
+    dePrueba,
   });
 
   /* Mientras se resuelve la sesión, la pantalla no parpadea con datos vacíos. */

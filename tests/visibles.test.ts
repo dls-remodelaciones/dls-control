@@ -106,3 +106,61 @@ test("sin leads no revienta en ninguna pestaña", () => {
     assert.deepEqual(leadsVisibles({ ...base, filas: [], tab, listaA: [] }), []);
   }
 });
+
+/* ── leads de prueba y el filtro por clase ──────────────────────────────── */
+
+/**
+ * El filtro por clase nace de tocar una de las tres cifras de arriba, y esas
+ * cifras no cuentan los leads marcados como prueba. Si el filtro sí los
+ * mostrara, apretar un "A 0" traería dos tarjetas y la pantalla se
+ * contradiría sola.
+ */
+test("el filtro por clase no trae leads marcados como prueba", () => {
+  const filas = [
+    { id: "real", estado: "contacto_inicial", clasificacion: "A" },
+    { id: "prueba", estado: "contacto_inicial", clasificacion: "A" },
+  ];
+  const v = leadsVisibles({
+    filas,
+    tab: "bandeja",
+    filtro: "A",
+    busqueda: "",
+    listaA: [],
+    sinResponder: new Map(),
+    paraHoy: [],
+    dePrueba: new Set(["prueba"]),
+  });
+  assert.deepEqual(v.map((f) => f.id), ["real"]);
+});
+
+test("sin filtro, la Bandeja muestra también los de prueba", () => {
+  const filas = [
+    { id: "real", estado: "contacto_inicial", clasificacion: "A" },
+    { id: "prueba", estado: "contacto_inicial", clasificacion: "A" },
+  ];
+  const v = leadsVisibles({
+    filas,
+    tab: "bandeja",
+    filtro: null,
+    busqueda: "",
+    listaA: [],
+    sinResponder: new Map(),
+    paraHoy: [],
+    dePrueba: new Set(["prueba"]),
+  });
+  assert.equal(v.length, 2, "la Bandeja es el registro completo de lo que entró");
+});
+
+test("sin la lista de pruebas, el filtro se comporta como antes", () => {
+  const filas = [{ id: "a", estado: "contacto_inicial", clasificacion: "B" }];
+  const v = leadsVisibles({
+    filas,
+    tab: "bandeja",
+    filtro: "B",
+    busqueda: "",
+    listaA: [],
+    sinResponder: new Map(),
+    paraHoy: [],
+  });
+  assert.equal(v.length, 1);
+});
