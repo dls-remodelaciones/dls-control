@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { pedirJson } from "@/lib/pedir";
 import Historial from "./historial";
+import Canal from "./canal";
+import { canalVisual } from "@/lib/canal-visual";
+import { cuandoLlego } from "@/lib/cuando";
 import { config, type Senal, type TipoProyecto } from "@/lib/negocio";
 
 /**
@@ -73,6 +76,11 @@ export type DatosFicha = {
   score?: number;
   clasificacion?: string;
   desglose?: Senal[];
+  /* De dónde salió este cliente. No se edita: es historia, no un campo. */
+  canal?: string | null;
+  /** Por dónde llegó la PRIMERA vez, que puede no ser por dónde escribió la última. */
+  fuente_original?: string | null;
+  creado?: string;
 };
 
 /** ISO guardado → valor de <input type="datetime-local"> en la hora del teléfono. */
@@ -170,8 +178,30 @@ export default function Ficha({
   };
   const clase = "w-full border px-2.5 py-2 text-[13px]";
 
+  /**
+   * De dónde salió el cliente y cuándo. Va arriba y no se edita: al abrir la
+   * ficha para llamar, lo primero que sitúa es por dónde escribió — no se saluda
+   * igual a alguien que mandó un DM que a alguien que llenó el cotizador.
+   *
+   * `fuente_original` se guardaba desde el principio y no se mostraba en ninguna
+   * parte: es por dónde llegó la primera vez. Cuando difiere del canal actual
+   * cuenta una historia útil (entró por Instagram y después escribió por
+   * WhatsApp), y sirve para saber qué canal trae de verdad a los clientes.
+   */
+  const primeraVez = canalVisual(f.fuente_original).nombre;
+  const ahora = canalVisual(f.canal).nombre;
+  const cambioDeCanal = Boolean(f.fuente_original) && primeraVez !== ahora;
+
   return (
     <div className="border-t px-3.5 py-3" style={{ borderColor: "var(--color-linesoft)" }}>
+      {(f.canal || f.creado) && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px]" style={{ color: "var(--color-muted)" }}>
+          {f.canal && <Canal canal={f.canal} />}
+          {f.creado && <span className="tabular-nums">entró {cuandoLlego(f.creado)}</span>}
+          {cambioDeCanal && <span>· llegó primero por {primeraVez}</span>}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2.5">
         <label className="col-span-2 text-[11px]" style={{ color: "var(--color-muted)" }}>
           Nombre
