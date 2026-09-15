@@ -6,6 +6,7 @@ import { telHref, waHref, config } from "@/lib/negocio";
 import { comoResponder } from "@/lib/canales";
 import { urgenciaDeEspera } from "@/lib/urgencia";
 import { cuandoLlego } from "@/lib/cuando";
+import { diasQuieto, textoQuieto } from "@/lib/quieto";
 import Canal from "./canal";
 import ResponderDM from "./responder-dm";
 import Conversacion from "./conversacion";
@@ -120,6 +121,14 @@ export default function Ficha({
    */
   const nivel = esperaDesde ? 1 : f.clasificacion === "A" && f.apto_para_llamar ? 2 : 3;
   const urgencia = esperaDesde ? urgenciaDeEspera(esperaDesde) : null;
+  /**
+   * Días sin que nadie mueva este lead, o null si no hay nada que decir.
+   *
+   * No se muestra cuando la persona está esperando respuesta: ahí ya manda la
+   * ventana de 24 horas, y dos relojes en la misma tarjeta compiten en vez de
+   * informar.
+   */
+  const quieto = esperaDesde ? null : diasQuieto(f);
 
   return (
     <li
@@ -221,6 +230,16 @@ export default function Ficha({
                 {cuandoLlego(f.creado)}
               </div>
             )
+          )}
+          {/* Cuánto lleva sin que nadie lo mueva. Es otra cosa que cuándo
+              entró: un lead de tres meses movido ayer está vivo, y uno de diez
+              días que nadie tocó se está enfriando. En el pipeline los dos se
+              veían idénticos. Solo aparece pasados los días del umbral, para
+              que signifique algo cuando aparece. */}
+          {quieto !== null && (
+            <div className="mt-0.5 pr-1.5 text-[11px] font-medium" style={{ color: "var(--color-b)" }}>
+              {textoQuieto(quieto)}
+            </div>
           )}
           {f.fecha_proxima_accion && (
             <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-b)" }}>

@@ -22,6 +22,12 @@ export type Fila = Lead & {
   desglose?: Senal[];
   proxima_accion?: string | null;
   fecha_proxima_accion?: string | null;
+  /**
+   * Última vez que alguien tocó este lead: un mensaje, una llamada registrada o
+   * una edición de la ficha. La usa `lib/quieto.ts` para decir cuánto lleva sin
+   * moverse, que es distinto de cuándo entró.
+   */
+  ultima_actividad?: string | null;
 };
 
 export type { Tab } from "@/lib/visibles";
