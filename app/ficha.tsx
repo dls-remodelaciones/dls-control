@@ -364,7 +364,7 @@ export default function Ficha({
       </div>
 
       {aviso && (
-        <p className="mt-2 text-[12px]" style={{ color: "var(--color-c)" }}>
+        <p className="mt-2 text-[12px]" style={{ color: "var(--color-c-texto)" }}>
           {aviso}
         </p>
       )}
@@ -442,7 +442,7 @@ export default function Ficha({
       <div className="mt-3 flex items-center justify-between">
         <span className="text-[11.5px]" style={{ color: "var(--color-muted)" }}>
           {sucia ? (
-            <b style={{ color: "var(--color-b)" }}>Tienes cambios sin guardar</b>
+            <b style={{ color: "var(--color-b-texto)" }}>Tienes cambios sin guardar</b>
           ) : resultado ? (
             <>
               Guardado · ahora es{" "}

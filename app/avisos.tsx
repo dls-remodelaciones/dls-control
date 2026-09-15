@@ -167,7 +167,7 @@ export default function Avisos() {
         </div>
       )}
       {aviso && (
-        <p className="mt-2 text-[12px]" style={{ color: "var(--color-c)" }}>
+        <p className="mt-2 text-[12px]" style={{ color: "var(--color-c-texto)" }}>
           {aviso}
         </p>
       )}

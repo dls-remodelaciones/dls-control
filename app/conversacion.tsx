@@ -298,7 +298,7 @@ export default function Conversacion({
       )}
 
       {aviso && (
-        <div className="px-3.5 pb-2 text-[12px]" style={{ color: "var(--color-c)" }}>
+        <div className="px-3.5 pb-2 text-[12px]" style={{ color: "var(--color-c-texto)" }}>
           {aviso}
         </div>
       )}
@@ -439,7 +439,7 @@ export default function Conversacion({
                 // Se distingue "no hay plantillas" de "no se pudieron consultar".
                 // Decir lo primero cuando pasó lo segundo manda a buscar el
                 // problema al lado equivocado.
-                <p className="mt-2" style={{ color: errorPlantillas ? "var(--color-c)" : "var(--color-muted)" }}>
+                <p className="mt-2" style={{ color: errorPlantillas ? "var(--color-c-texto)" : "var(--color-muted)" }}>
                   {errorPlantillas
                     ? `No se pudieron consultar las plantillas: ${errorPlantillas}`
                     : "Todavía no tienes plantillas aprobadas por Meta."}

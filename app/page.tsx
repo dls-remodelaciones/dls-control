@@ -122,8 +122,8 @@ export default function Pagina() {
         {(
           [
             ["A", conteos.a, "Llamar hoy", "var(--color-a)"],
-            ["B", conteos.b, "En nutrición", "var(--color-b)"],
-            ["C", conteos.c, "Pendientes", "var(--color-c)"],
+            ["B", conteos.b, "En nutrición", "var(--color-b-texto)"],
+            ["C", conteos.c, "Pendientes", "var(--color-c-texto)"],
           ] as const
         ).map(([clase, n, etiqueta, color]) => (
           <button
@@ -227,7 +227,7 @@ export default function Pagina() {
             celular llega una vez; esto los deja a la vista hasta que se resuelvan. */}
         {!cargando && tab === "hoy" && paraHoy.length > 0 && (
           <section className="mb-6">
-            <h2 className="mb-2 text-[11px] font-semibold tracking-[0.12em] uppercase" style={{ color: "var(--color-b)" }}>
+            <h2 className="mb-2 text-[11px] font-semibold tracking-[0.12em] uppercase" style={{ color: "var(--color-b-texto)" }}>
               Para hoy · {paraHoy.length}
             </h2>
             {/* Acá el orden lo pone la hora del recordatorio, no la de entrada:

@@ -117,7 +117,7 @@ export default function Historial({ leadId }: { leadId: string }) {
         {abierto ? "Ocultar historial" : "Ver historial"}
       </button>
       {abierto && error && (
-        <p className="mt-1.5 text-[12px]" style={{ color: "var(--color-c)" }}>
+        <p className="mt-1.5 text-[12px]" style={{ color: "var(--color-c-texto)" }}>
           No se pudo leer el historial: {error}
         </p>
       )}

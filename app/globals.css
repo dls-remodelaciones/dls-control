@@ -9,16 +9,29 @@
   --color-warm: #e4dccc;      /* beige, encabezados y hover */
   --color-ink: #1d1c21;       /* negro-carbón, texto */
   --color-carbon: #211e19;
-  --color-muted: #6e6a63;
+  --color-muted: #645f58;
   --color-line: rgba(23, 20, 15, 0.14);
   --color-linesoft: rgba(23, 20, 15, 0.07);
   --color-brand: #bccad5;     /* gris-azulado de marca — acento y foco */
 
   /* Semánticos: separados del acento de marca a propósito. */
-  --color-a: #b03a2e;         /* llamar hoy */
+  --color-a: #a3342a;         /* llamar hoy */
   --color-b: #b8895a;         /* en nutrición */
   --color-c: #8a8781;         /* dormido */
-  --color-ok: #2c7a4b;        /* ganado */
+  --color-ok: #276b42;        /* ganado */
+
+  /* ── Las mismas señales, para TEXTO CHICO ────────────────────────────────
+     Medidos el 15-sep-2026 contra los tres fondos del panel (bg, surface y
+     warm). El ámbar y el gris de "dormido" daban 2,3 a 3,4 donde el texto de
+     menos de 18 px necesita 4,5: legibles en el monitor y difíciles en el
+     celular, que es donde se usa el panel.
+
+     No se cambiaron los originales porque en bordes, insignias y en las cifras
+     de 30 px funcionan bien y son los tonos de la marca. Estas variantes son
+     solo para texto de 11 a 13 px. `lib/contraste.ts` y su prueba impiden que
+     alguien los vuelva a aclarar sin darse cuenta. */
+  --color-b-texto: #80562b;   /* en nutrición, en texto chico */
+  --color-c-texto: #605c54;   /* dormido, en texto chico */
 
   --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Space Mono", ui-monospace, monospace;

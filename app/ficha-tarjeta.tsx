@@ -11,7 +11,7 @@ import Canal from "./canal";
 import ResponderDM from "./responder-dm";
 import Conversacion from "./conversacion";
 import FichaDetalle from "./ficha";
-import { CLASE_COLOR, type Fila } from "./tipos";
+import { CLASE_COLOR, CLASE_COLOR_TEXTO, type Fila } from "./tipos";
 
 /**
  * La tarjeta de un lead en la lista: quién es, qué pidió, y las tres acciones
@@ -103,7 +103,10 @@ export default function Ficha({
   const otros = (f.proyectos ?? []).filter(
     (p) => !(p.tipo === f.tipo_proyecto && p.comuna === f.comuna && p.m2 === f.superficie_m2),
   );
+  /** Para el borde izquierdo de la tarjeta: tono de marca, no se lee. */
   const color = CLASE_COLOR[f.clasificacion] ?? "var(--color-c)";
+  /** Para el "B 58" de la esquina, que sí se lee: variante con contraste. */
+  const colorTexto = CLASE_COLOR_TEXTO[f.clasificacion] ?? "var(--color-c-texto)";
   // Sin teléfono, pero escribió por una red donde sí se le puede contestar.
   const responder = f.telefono ? null : comoResponder(f.canal);
 
@@ -181,7 +184,7 @@ export default function Ficha({
               mayor presupuesto — y aquí las demás, para no llamar a medias. */}
           {otros.length > 0 && (
             <div className="mt-1.5 text-[12px]" style={{ color: "var(--color-muted)" }}>
-              <span style={{ color: "var(--color-b)" }}>
+              <span style={{ color: "var(--color-b-texto)" }}>
                 También pidió {otros.length === 1 ? "otro proyecto" : `otros ${otros.length} proyectos`}:
               </span>{" "}
               {otros
@@ -204,7 +207,7 @@ export default function Ficha({
           {urgencia && (
             <div
               className="mt-1.5 text-[12px] font-semibold tabular-nums"
-              style={{ color: urgencia.alarma ? "var(--color-a)" : "var(--color-b)" }}
+              style={{ color: urgencia.alarma ? "var(--color-a)" : "var(--color-b-texto)" }}
             >
               {urgencia.texto}
             </div>
@@ -213,7 +216,7 @@ export default function Ficha({
         <div className="shrink-0 text-right">
           <span
             className="tabular rounded-[2px] px-1.5 py-0.5 text-[12px] font-bold"
-            style={{ fontFamily: "var(--font-space-mono)", color }}
+            style={{ fontFamily: "var(--font-space-mono)", color: colorTexto }}
           >
             {f.clasificacion} {f.score}
           </span>
@@ -237,12 +240,12 @@ export default function Ficha({
               veían idénticos. Solo aparece pasados los días del umbral, para
               que signifique algo cuando aparece. */}
           {quieto !== null && (
-            <div className="mt-0.5 pr-1.5 text-[11px] font-medium" style={{ color: "var(--color-b)" }}>
+            <div className="mt-0.5 pr-1.5 text-[11px] font-medium" style={{ color: "var(--color-b-texto)" }}>
               {textoQuieto(quieto)}
             </div>
           )}
           {f.fecha_proxima_accion && (
-            <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-b)" }}>
+            <div className="mt-0.5 pr-1.5 text-[11px]" style={{ color: "var(--color-b-texto)" }}>
               {new Date(f.fecha_proxima_accion).toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
             </div>
           )}
