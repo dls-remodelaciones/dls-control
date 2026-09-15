@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import type { GrupoCanal } from "@/lib/agrupar-canal";
 import Canal from "./canal";
 import Ficha from "./ficha-tarjeta";
+import { useCerrados } from "./use-cerrados";
 import type { Fila } from "./tipos";
 
 /**
@@ -44,17 +44,17 @@ export default function BandejaCanales({
    */
   prefijo?: string;
 }) {
-  const [cerrados, setCerrados] = useState<Record<string, boolean>>({});
+  const { cerrado: estaCerrado, alternar } = useCerrados();
 
   return (
     <div className={compacto ? "space-y-3.5" : "space-y-5"}>
       {grupos.map((g) => {
         const llave = `${prefijo}${g.clave}`;
-        const cerrado = Boolean(cerrados[llave]);
+        const cerrado = estaCerrado(llave);
         return (
           <section key={g.clave}>
             <button
-              onClick={() => setCerrados((c) => ({ ...c, [llave]: !cerrado }))}
+              onClick={() => alternar(llave)}
               aria-expanded={!cerrado}
               className={`flex w-full cursor-pointer items-center gap-2 text-left ${compacto ? "py-1" : "border-b py-2"}`}
               style={{ borderColor: "var(--color-line)" }}
