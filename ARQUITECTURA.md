@@ -1,6 +1,6 @@
 # Arquitectura de DLS Control y del sitio
 
-Mapa de todo el sistema al 14 de septiembre de 2026. Para entender qué hace cada pieza y
+Mapa de todo el sistema al 15 de septiembre de 2026. Para entender qué hace cada pieza y
 dónde tocar, antes de abrir el código. Los detalles de cada decisión están en los
 comentarios de cada archivo.
 
@@ -103,7 +103,7 @@ Daniel ────> "+ Anotar lead" ──────────────�
 | `app/estado.tsx` | "Estado del sistema" (los chequeos de la revisión diaria) |
 | `app/login/page.tsx` | Ingreso por enlace o código de 8 dígitos (entra solo al completarlo) |
 
-### Cómo se ordena lo que se ve (14-sep-2026)
+### Cómo se ordena lo que se ve (14 y 15-sep-2026)
 
 El panel mostraba treinta tarjetas idénticas: el canal se guardaba desde el
 primer día pero no se dibujaba en ninguna parte, y con cinco entradas al mismo
@@ -118,8 +118,11 @@ poder probarlas — un error acá esconde un cliente sin que nada falle a la vis
 | `lib/etapas.ts` | Las etapas del pipeline, en el orden del negocio |
 | `lib/cuando.ts` | "hoy 14:32" en vez de "hace 14 h", para poder comparar llegadas |
 | `lib/cerrados.ts` | Qué secciones quedan dobladas. Solo se anota lo cerrado |
+| `lib/prueba.ts` | Qué leads son pruebas del sistema y no cuentan como clientes |
+| `lib/quieto.ts` | Cuántos días lleva un lead sin que nadie lo mueva |
+| `lib/contacto-publicado.ts` | Que el sitio y la página de ingreso solo publiquen datos de la empresa |
 
-Tres criterios que no son obvios y conviene no "arreglar":
+Cinco criterios que no son obvios y conviene no "arreglar":
 
 - **Entre canales manda quien espera, no el volumen**, y entre los que esperan,
   aquel a quien antes se le cierra la ventana de Meta. Un canal con dos personas
@@ -127,8 +130,20 @@ Tres criterios que no son obvios y conviene no "arreglar":
 - **En "Para hoy" el orden es al revés** que en la bandeja: manda la hora del
   recordatorio y lo vencido va arriba. Por eso `agruparPorCanal` acepta `ascPor`.
 - **Todo lo desconocido cae del lado visible**: un canal nuevo, un estado que no
-  está en `ETAPAS`, un valor corrupto en el navegador. Siempre se ve de más,
-  nunca de menos.
+  está en `ETAPAS`, un valor corrupto en el navegador, un lead con fecha
+  inválida. Siempre se ve de más, nunca de menos. Esconder un cliente es el
+  error caro y no falla nada a la vista cuando ocurre.
+- **Las cifras cuentan clientes; la Bandeja muestra lo que entró.** Los leads
+  marcados como prueba salen de las tres cifras, de Hoy, del pipeline, del aviso
+  diario y del resumen semanal — y del filtro por clase, porque ese filtro nace
+  de tocar una cifra y tenía que contar lo mismo que ella. En la Bandeja sin
+  filtro siguen apareciendo con su insignia: es el registro completo y desde ahí
+  se marcan.
+- **La marca de prueba es explícita, nunca por nombre.** Detectar "prueba" o
+  "test" en el nombre esconde el lead de una clienta apellidada Testa sin que
+  nada falle. Misma razón por la que la migración 003 borra uno por uno.
+  Se guarda en `actividad`, como "marcar como atendido": sin migración y con
+  registro de cuándo.
 
 "Hoy" y "Bandeja" se agrupan por canal; el pipeline, por etapa.
 
@@ -158,10 +173,44 @@ Tres criterios que no son obvios y conviene no "arreglar":
 
 | Cuándo | Qué | Avisa |
 |---|---|---|
-| Diario 11:00 (8:00 Chile) | Revisión de salud: claves, base, leads entrando, latidos de tareas, respaldo, errores del sitio, cupo de correos, WhatsApp, **Instagram y Messenger** (apretón de manos real contra su webhook), sitio, reglas sitio=panel, dominio, avisos. Además: nombre de Meta y leads A sin llamar | Solo si algo falla o hay novedad |
+| Diario 11:00 (8:00 Chile) | Revisión de salud (21 chequeos): claves, base, leads entrando, latidos de tareas, respaldo, errores del sitio, cupo de correos, WhatsApp, **Instagram y Messenger** (apretón de manos real contra su webhook), sitio, reglas sitio=panel, dominio, avisos, **datos de contacto publicados** (sitio y página de ingreso). Además, en avisos aparte: nombre de Meta, leads A sin llamar y **presupuestos enviados hace 7 días sin respuesta** | Solo si algo falla o hay novedad |
 | Cada hora | Recordatorios de la ficha y ventanas de WhatsApp por vencer | Por cada uno |
 | Lunes 12:00 | Resumen semanal con embudo | Siempre |
 | Domingo 07:00 | Respaldo de los datos al bucket privado `respaldos` | Solo si falla |
+
+### Los 21 chequeos de la revisión diaria
+
+Contados uno por uno el 15-sep-2026 leyendo las llamadas a `anotar()` en
+`lib/salud.ts`, porque el número andaba de memoria por ahí y las llamadas en
+ramas condicionales lo hacen parecer más grande (32 llamadas, 21 chequeos):
+
+1. Claves del servidor · 2. Base de datos · 3. Leads entrando · 4. Tareas
+automáticas · 5. Respaldo semanal · 6. Errores en el sitio · 7. Cupo de correos ·
+8. WhatsApp: token · 9. WhatsApp: entrada de mensajes · 10. Instagram: entrada de
+mensajes · 11. Messenger: entrada de mensajes · 12. Instagram: responder DM ·
+13. Sitio web · 14. Datos para Google · 15. Datos de contacto publicados ·
+16. Scripts del sitio · 17. Reglas de puntaje · 18. Sitio → panel · 19. Sitio →
+WhatsApp · 20. Dominio · 21. Avisos al celular
+
+Los dos de "entrada de mensajes" de Instagram y Messenger salen de un bucle sobre
+`WEBHOOKS_META`: agregar un canal ahí suma un chequeo solo.
+
+### Qué avisa al celular, y por qué van separados
+
+Cuatro avisos posibles cada mañana, cada uno con su propio `tag` para que el
+celular los agrupe y no se apilen:
+
+| Aviso | Cuándo | `tag` |
+|---|---|---|
+| Falla del sistema | cualquiera de los 21 chequeos en rojo | `salud` |
+| Nombre de WhatsApp | Meta cambió el estado del nombre visible | `meta-nombre` |
+| Leads A sin llamar | clasificación A, aptos, más de 48 h sin llamada | `a-sin-llamar` |
+| Presupuestos dormidos | `presupuesto_enviado` con 7 días sin movimiento | `presupuestos-dormidos` |
+
+Los dos últimos van **aparte a propósito**. Son dos trabajos distintos —llamar a
+alguien nuevo versus insistir sobre algo ya cotizado— y juntos en un mensaje se
+atiende solo el primero. Ninguno incluye leads marcados como prueba: un aviso que
+pide una llamada imposible es el que enseña a ignorar los avisos.
 
 ## Base de datos (Supabase, `supabase/`)
 
@@ -225,7 +274,7 @@ restricción.
 
 ## Pruebas
 
-`npm test` (node:test con tsx). 332 al 14-sep-2026. También corren en GitHub Actions en cada
+`npm test` (node:test con tsx). 381 al 15-sep-2026. También corren en GitHub Actions en cada
 push (`.github/workflows/pruebas.yml`); no bloquean el despliegue de Vercel, pero dejan la
 marca roja.
 
