@@ -299,11 +299,11 @@ export default function Ficha({
 
       {respondiendoDM && responder && (
         <>
-          <ResponderDM leadId={f.id} canal={responder.texto.replace("Responder en ", "")} alEnviar={recargar} />
+          <ResponderDM leadId={f.id} canal={responder.nombre} alEnviar={recargar} />
           <div className="px-3.5 pb-3 text-[12px]" style={{ color: "var(--color-muted)" }}>
             Si pasaron más de 24 horas desde su mensaje, Meta ya no deja responder desde acá:{" "}
             <a href={responder.href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-              abrir la conversación en {responder.texto.replace("Responder en ", "")}
+              abrir la conversación en {responder.nombre}
             </a>
             .
           </div>

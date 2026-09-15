@@ -11,6 +11,9 @@ import { comoResponder, CANALES_CONVERSACION } from "../lib/canales";
 test("un DM de Instagram lleva a la bandeja de Instagram", () => {
   const r = comoResponder("instagram");
   assert.equal(r?.texto, "Responder en Instagram");
+  // El nombre va aparte del texto del botón: la ficha lo muestra por su cuenta
+  // y antes lo sacaba recortando el botón, que se rompía al reescribirlo.
+  assert.equal(r?.nombre, "Instagram");
   assert.match(r!.href, /^https:\/\/www\.instagram\.com\//);
 });
 

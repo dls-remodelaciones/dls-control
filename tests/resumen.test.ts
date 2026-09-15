@@ -19,14 +19,16 @@ test("cuenta clases, canales y compara con la semana anterior", () => {
   const r = resumirSemana(semana, [lead("chatbot", "B")], 1);
   assert.equal(r.titulo, "3 leads nuevos esta semana (+2 vs. la semana anterior)");
   assert.match(r.cuerpo, /A 1 · B 1 · C 1 · D 0/);
-  assert.match(r.cuerpo, /Llegaron por: 2 cotizador, 1 WhatsApp/);
+  // El nombre va adelante ("Cotizador 2") y sale de lib/canal-visual.ts, el
+  // mismo lugar del que lo toman las tarjetas del panel.
+  assert.match(r.cuerpo, /Llegaron por: Cotizador 2, WhatsApp 1/);
   assert.match(r.cuerpo, /1 lead A sigue sin llamar/);
 });
 
 test("Messenger aparece con su nombre, no como 'facebook'", () => {
   const r = resumirSemana([lead("facebook", "C"), lead("instagram", "C")], [], 0);
-  assert.match(r.cuerpo, /1 Messenger/);
-  assert.match(r.cuerpo, /1 Instagram/);
+  assert.match(r.cuerpo, /Messenger 1/);
+  assert.match(r.cuerpo, /Instagram 1/);
   assert.ok(!/facebook/i.test(r.cuerpo), `no debería decir el nombre técnico: ${r.cuerpo}`);
 });
 
@@ -65,7 +67,7 @@ test("una semana sin leads después de una con leads pide revisar el sitio", () 
 test("singular y sin tendencia cuando es igual", () => {
   const r = resumirSemana([lead("manual", "A")], [lead("web", "D")], 2);
   assert.equal(r.titulo, "1 lead nuevo esta semana (igual que la semana anterior)");
-  assert.match(r.cuerpo, /1 anotados a mano/);
+  assert.match(r.cuerpo, /Anotado a mano 1/);
   assert.match(r.cuerpo, /2 leads A siguen sin llamar/);
 });
 

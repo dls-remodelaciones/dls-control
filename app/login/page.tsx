@@ -204,6 +204,9 @@ export default function Login() {
           <label htmlFor="correo" className="text-[13px]" style={{ color: "var(--color-muted)" }}>
             Tu correo
           </label>
+          {/* El ejemplo del campo va neutro a propósito: esta página es pública
+              y cualquiera que la abra lo ve. Antes mostraba un correo personal
+              real, que es regalarle una dirección válida a quien pase por acá. */}
           <input
             id="correo"
             type="email"
@@ -212,7 +215,7 @@ export default function Login() {
             required
             value={correo}
             onChange={(e) => setCorreo(e.target.value)}
-            placeholder="dls.lehmann@gmail.com"
+            placeholder="tu@correo.cl"
             className="border px-3.5 py-3 text-[15px]"
             style={{
               background: "var(--color-surface)",

@@ -8,6 +8,8 @@
  * Función pura: recibe las filas y devuelve el texto. La ruta solo consulta y avisa.
  */
 
+import { canalVisual } from "@/lib/canal-visual";
+
 export interface FilaLead {
   canal: string | null;
   clasificacion: string | null;
@@ -19,16 +21,15 @@ export interface FilaLead {
   email?: string | null;
 }
 
-const NOMBRE_CANAL: Record<string, string> = {
-  cotizador: "cotizador",
-  chatbot: "chatbot",
-  web: "formulario",
-  whatsapp: "WhatsApp",
-  manual: "anotados a mano",
-  instagram: "Instagram",
-  facebook: "Messenger",
-  correo: "correo",
-};
+/**
+ * Los nombres de los canales salen de `lib/canal-visual.ts`, el mismo lugar del
+ * que los toma el panel.
+ *
+ * Antes había una segunda tabla acá. Dos listas de lo mismo se desincronizan al
+ * primer canal nuevo: bastaba agregarlo en una para que el resumen semanal lo
+ * nombrara distinto que las tarjetas, o lo llamara por el nombre crudo de la
+ * columna de la base.
+ */
 
 /** Cambios de estado registrados al editar fichas (actividad tipo "edicion"). */
 export interface CambioEstado {
@@ -64,7 +65,7 @@ export function resumirSemana(
   const canales = new Map<string, number>();
   for (const l of semana) {
     if (l.clasificacion && l.clasificacion in clases) clases[l.clasificacion]++;
-    const c = NOMBRE_CANAL[l.canal ?? ""] ?? l.canal ?? "otro";
+    const c = canalVisual(l.canal).nombre;
     canales.set(c, (canales.get(c) ?? 0) + 1);
   }
 
@@ -81,7 +82,9 @@ export function resumirSemana(
   const partes: string[] = [];
   if (n > 0) {
     partes.push(`A ${clases.A} · B ${clases.B} · C ${clases.C} · D ${clases.D}.`);
-    const origen = [...canales.entries()].sort((a, b) => b[1] - a[1]).map(([c, k]) => `${k} ${c}`);
+    // "Cotizador 2" y no "2 cotizador": con el nombre adelante la frase aguanta
+    // cualquier canal sin quedar mal escrita ("3 Anotado a mano" no se lee).
+    const origen = [...canales.entries()].sort((a, b) => b[1] - a[1]).map(([c, k]) => `${c} ${k}`);
     partes.push(`Llegaron por: ${origen.join(", ")}.`);
 
     // Los que no dejaron cómo contactarlos: casi siempre DM de Instagram o

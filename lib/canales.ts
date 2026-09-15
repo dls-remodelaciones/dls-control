@@ -28,11 +28,27 @@ export interface ComoResponder {
   texto: string;
   /** Adónde lleva: la bandeja de esa red. */
   href: string;
+  /**
+   * El nombre de la red, aparte del texto del botón.
+   *
+   * La pantalla lo sacaba del propio botón con un `replace("Responder en ", "")`,
+   * que se rompía en silencio con solo reescribir el botón: la ficha terminaría
+   * diciendo "abrir la conversación en Responder en Instagram" o algo peor.
+   */
+  nombre: string;
 }
 
 const BANDEJAS: Record<string, ComoResponder> = {
-  instagram: { texto: "Responder en Instagram", href: "https://www.instagram.com/direct/inbox/" },
-  facebook: { texto: "Responder en Messenger", href: "https://business.facebook.com/latest/inbox/all" },
+  instagram: {
+    nombre: "Instagram",
+    texto: "Responder en Instagram",
+    href: "https://www.instagram.com/direct/inbox/",
+  },
+  facebook: {
+    nombre: "Messenger",
+    texto: "Responder en Messenger",
+    href: "https://business.facebook.com/latest/inbox/all",
+  },
 };
 
 /**
