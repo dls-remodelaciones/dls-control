@@ -7,7 +7,8 @@ import { atrasadas, leerLatidos } from "@/lib/latidos";
 import { config } from "@/lib/negocio";
 import { BUCKET as BUCKET_RESPALDOS, DIAS_SIN_RESPALDO, ultimoRespaldo } from "@/lib/respaldo";
 import { CLAVE as CLAVE_ERRORES, UMBRAL_24H, resumen as resumenErrores, type ErrorSitio } from "@/lib/errores";
-import { consultarWhois, diasHasta, leerVencimiento, DIAS_AVISO, DOMINIO } from "@/lib/dominio";
+import { consultarWhois, leerVencimiento } from "@/lib/dominio";
+import { CLAVE as CLAVE_DOMINIO, estadoDominio, type DominioVisto } from "@/lib/dominio-memoria";
 import { DIAS_SILENCIO, diasSinLeads, type EstadoNombre } from "@/lib/novedades";
 import { CLAVE as CLAVE_CORREOS, limite, proximoReinicio, vigente, type Uso } from "@/lib/correos";
 import { revisarForma } from "@/lib/dm";
@@ -418,23 +419,23 @@ export async function revisarSalud(): Promise<{ chequeos: Chequeo[]; nombreMeta:
     anotar("Sitio web", false, `No se pudo abrir dlsremodelaciones.cl: ${e instanceof Error ? e.message : e}`);
   }
 
-  // 5b. Dominio: si vence, se apagan el sitio y el correo contacto@.
+  // 5b. Dominio: si vence, se apagan el sitio y el correo contacto@. Cuando NIC
+  // no contesta se responde con la última consulta buena (lib/dominio-memoria.ts):
+  // antes ese día quedaba en verde, así que el chequeo podía estar ciego para siempre.
   const whois = await consultarWhois();
   const vence = whois ? leerVencimiento(whois) : null;
-  if (vence) {
-    const dias = diasHasta(vence, new Date());
-    anotar(
-      "Dominio",
-      dias > DIAS_AVISO,
-      dias > DIAS_AVISO
-        ? `${DOMINIO} vence el ${vence} (en ${dias} días).`
-        : dias >= 0
-          ? `${DOMINIO} vence el ${vence}: quedan ${dias} días. Renuévalo en nic.cl o se apagan el sitio y el correo.`
-          : `${DOMINIO} VENCIÓ el ${vence}. Renuévalo en nic.cl de inmediato.`,
-    );
-  } else {
-    // Sin respuesta de NIC no se alarma: sería una falsa alarma diaria. Queda anotado.
-    anotar("Dominio", true, "No se pudo consultar a NIC Chile hoy; se reintenta mañana.");
+  let vistoDominio: DominioVisto | null = null;
+  if (db) {
+    const { data } = await db.from("config").select("valor").eq("clave", CLAVE_DOMINIO).maybeSingle();
+    const v = data?.valor as DominioVisto | undefined;
+    if (v?.vence && v?.visto) vistoDominio = v;
+  }
+  const dominio = estadoDominio(vence, vistoDominio, new Date());
+  anotar("Dominio", dominio.ok, dominio.detalle);
+  if (db && dominio.guardar) {
+    await db
+      .from("config")
+      .upsert({ clave: CLAVE_DOMINIO, valor: dominio.guardar, actualizado: new Date().toISOString() }, { onConflict: "clave" });
   }
 
   // 6. Avisos: si no hay ningún dispositivo suscrito, una falla no le llega a nadie.
